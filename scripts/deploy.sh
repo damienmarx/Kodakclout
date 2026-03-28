@@ -93,6 +93,12 @@ if [ ! -f client/.env ]; then
     cp client/.env.example client/.env
 fi
 
+# Load environment variables from server/.env
+if [ -f server/.env ]; then
+    log "Loading environment variables from server/.env..."
+    export $(grep -v '^#' server/.env | xargs)
+fi
+
 # 7. Build Shared Module
 log "Building shared module..."
 (cd shared && pnpm build)
@@ -142,6 +148,8 @@ log "Building backend..."
 log "Checking for Cloudflare Tunnel setup..."
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
+    # Ensure script is executable and run it
+    chmod +x "$SCRIPT_DIR/setup-cloudflared.sh"
     "$SCRIPT_DIR/setup-cloudflared.sh"
 else
     log "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflared setup."
