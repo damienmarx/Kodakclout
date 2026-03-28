@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.7 (Self-Healing DB & Robust Env)
+# Version: 1.1.8 (Bulletproof Env & Self-Healing DB)
 
 set -e
 
@@ -85,25 +85,14 @@ log "Checking environment files..."
 [ ! -f server/.env ] && cp server/.env.example server/.env && log "Created server/.env from template."
 [ ! -f client/.env ] && cp client/.env.example client/.env && log "Created client/.env from template."
 
-# ─── Robust Env Loading ───
+# ─── Bulletproof Env Loading ───
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    # Use a safe way to load env vars into the current shell
-    while read -r line || [ -n "$line" ]; do
-        # Remove leading/trailing whitespace
-        line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        # Skip comments and empty lines
-        if [[ $line =~ ^# ]] || [[ -z $line ]]; then
-            continue
-        fi
-        # Split into key and value
-        key=$(echo "$line" | cut -d '=' -f 1)
-        value=$(echo "$line" | cut -d '=' -f 2-)
-        # Remove potential surrounding quotes from value
-        value=$(echo "$value" | sed -e 's/^["'\'']//' -e 's/["'\'']$//')
-        # Export
-        export "$key"="$value"
-    done < server/.env
+    # Export using a temporary file to avoid subshell issues and handle quotes/spaces
+    TMP_ENV=$(mktemp)
+    grep -v '^#' server/.env | grep '=' | sed 's/^/export /' > "$TMP_ENV"
+    source "$TMP_ENV"
+    rm "$TMP_ENV"
 fi
 
 # 7. Build Shared Module
@@ -112,6 +101,14 @@ log "Building shared module..."
 
 # 8. Database Initialization & Migrations
 log "Handling database..."
+
+# Check if DATABASE_URL is set after source
+if [ -z "$DATABASE_URL" ]; then
+    # Fallback: manually grep if source failed for some reason
+    DATABASE_URL=$(grep "^DATABASE_URL=" server/.env | cut -d'=' -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//')
+    export DATABASE_URL
+fi
+
 if [ -z "$DATABASE_URL" ]; then
     error "DATABASE_URL is not set in server/.env. Please configure it."
 fi
@@ -153,8 +150,12 @@ log "Building backend..."
 
 # 10. Cloudflare Tunnel Setup
 log "Checking for Cloudflare Tunnel setup..."
+# Ensure CLOUDFLARE_API_TOKEN is exported
+[ -z "$CLOUDFLARE_API_TOKEN" ] && CLOUDFLARE_API_TOKEN=$(grep "^CLOUDFLARE_API_TOKEN=" server/.env | cut -d'=' -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//')
+
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
+    export CLOUDFLARE_API_TOKEN
     chmod +x "$SCRIPT_DIR/setup-cloudflared-v2.sh"
     "$SCRIPT_DIR/setup-cloudflared-v2.sh"
 else
