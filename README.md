@@ -60,7 +60,7 @@ To get the Kodakclout project up and running in a development environment, follo
 
     -   `server/.env`:
         ```
-        PORT=3001
+        PORT=8080
         NODE_ENV=development
         CLIENT_URL=https://cloutscape.org
         DATABASE_URL=mysql://user:password@localhost:3306/kodakclout
@@ -89,7 +89,7 @@ To get the Kodakclout project up and running in a development environment, follo
     ```bash
     pnpm dev
     ```
-    The frontend will typically be available at `https://cloutscape.org` and the backend API at `https://cloutscape.org/api`.
+    The frontend will typically be available at `https://cloutscape.org` and the backend API at `https://cloutscape.org/api` (proxied via port 8080).
 
 ## Automated Deployment
 

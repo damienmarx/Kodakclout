@@ -105,9 +105,9 @@ pm2 start server/dist/index.js --name kodakclout --env production
 # 10. Final Health Check
 log "Validating deployment..."
 sleep 5
-if curl -s http://localhost:3001/api/games > /dev/null; then
+if curl -s http://localhost:8080/api/games > /dev/null; then
     success "Kodakclout is up and running!"
-    log "Local URL: http://localhost:3001"
+    log "Local URL: http://localhost:8080"
     log "Public URL: https://cloutscape.org"
     log "Frontend: Served via backend at the same URL"
 else
