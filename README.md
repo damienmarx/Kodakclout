@@ -18,7 +18,7 @@ The monorepo is organized into the following key directories:
 - **Framework**: Express.js
 - **API Layer**: tRPC
 - **Authentication**: Google OAuth
-- **Database**: MySQL (with Drizzle ORM)
+- **Database**: MariaDB / MySQL (with Drizzle ORM)
 - **Language**: TypeScript
 - **Game Integration**: Clutch Provider
 
@@ -77,7 +77,7 @@ To get the Kodakclout project up and running in a development environment, follo
         VITE_APP_NAME=Kodakclout
         ```
 
-5.  **Database Setup**: Ensure your MySQL server is running and accessible. Then, run the database migrations from the `server` directory:
+5.  **Database Setup**: Ensure your MariaDB/MySQL server is running and accessible. Then, run the database migrations from the `server` directory:
     ```bash
     cd server
     pnpm migrate

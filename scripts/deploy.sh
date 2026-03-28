@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.0.0
+# Version: 1.1.0 (MariaDB Optimized)
 
 set -e
 
@@ -35,8 +35,10 @@ fi
 
 # 2. Install System Dependencies (Non-interactive)
 log "Installing system dependencies..."
+export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-sudo apt-get install -y curl git mysql-client build-essential
+# Install mariadb-client for MariaDB compatibility
+sudo apt-get install -y curl git mariadb-client build-essential psmisc
 
 # Install Node.js if not present
 if ! command -v node &> /dev/null; then
