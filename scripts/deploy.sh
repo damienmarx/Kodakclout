@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.2 (Robust Path & Node Detection)
+# Version: 1.1.3 (Fix Path & Migration Issues)
 
 set -e
 
@@ -25,7 +25,12 @@ error() {
     exit 1
 }
 
-log "Starting Kodakclout deployment..."
+# Ensure we are in the project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
+log "Starting Kodakclout deployment in $PROJECT_ROOT..."
 
 # 1. Detect OS
 OS_TYPE=$(lsb_release -is 2>/dev/null || echo "Unknown")
@@ -40,7 +45,6 @@ sudo apt-get update -y
 sudo apt-get install -y curl git mariadb-client build-essential psmisc
 
 # 3. Node.js & npm Setup
-# Try to find node/npm in common paths
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 if ! command -v node &> /dev/null; then
@@ -53,40 +57,30 @@ fi
 NPM_CMD=$(command -v npm || which npm || echo "")
 
 # 4. pnpm & pm2 Setup
-# Install pnpm if not present
 if ! command -v pnpm &> /dev/null; then
     log "Installing pnpm..."
-    # Try standalone installer first as it's more robust
     curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(command -v bash)" bash - || true
-    
-    # Add to current path for this session
     export PNPM_HOME="$HOME/.local/share/pnpm"
     export PATH="$PNPM_HOME:$PATH"
-    
-    # If still not found, try npm
     if ! command -v pnpm &> /dev/null && [ -n "$NPM_CMD" ]; then
         sudo "$NPM_CMD" install -g pnpm || npm install -g pnpm
     fi
 fi
 
-# Install PM2 if not present
 if ! command -v pm2 &> /dev/null; then
     log "Installing PM2..."
     if [ -n "$NPM_CMD" ]; then
         sudo "$NPM_CMD" install -g pm2 || npm install -g pm2
     else
-        # Last resort: try pnpm to install pm2
         pnpm add -g pm2 || true
     fi
+    export PATH="$HOME/.local/share/pnpm:$PATH"
 fi
-
-# Final check for critical tools
-if ! command -v pnpm &> /dev/null; then error "pnpm could not be installed. Please install it manually."; fi
-if ! command -v pm2 &> /dev/null; then error "pm2 could not be installed. Please install it manually."; fi
 
 # 5. Setup Project
 log "Setting up project dependencies..."
-pnpm install
+# Use --yes to skip interactive prompts for node_modules removal
+pnpm install --no-frozen-lockfile
 
 # 6. Handle Environment Files
 log "Checking environment files..."
@@ -103,28 +97,33 @@ fi
 
 # 7. Build Shared Module
 log "Building shared module..."
-cd shared && pnpm build && cd ..
+(cd shared && pnpm build)
 
 # 8. Database Migrations
 log "Running database migrations..."
 if grep -q "mysql://user:password" server/.env; then
     log "Skipping migrations: DATABASE_URL still has default placeholder."
 else
-    cd server && pnpm migrate && cd ..
+    # Update drizzle.config.json with the actual DATABASE_URL from .env
+    DB_URL=$(grep "DATABASE_URL=" server/.env | cut -d'=' -f2-)
+    if [ -n "$DB_URL" ]; then
+        sed -i "s|\"uri\": \".*\"|\"uri\": \"$DB_URL\"|" server/drizzle.config.json
+    fi
+    (cd server && pnpm migrate)
 fi
 
 # 9. Build Frontend
 log "Building frontend..."
-cd client && pnpm build && cd ..
+(cd client && pnpm build)
 
 # 10. Build Backend
 log "Building backend..."
-cd server && pnpm build && cd ..
+(cd server && pnpm build)
 
 # 11. Start/Restart Application with PM2
 log "Deploying with PM2..."
 export NODE_ENV=production
-PM2_CMD=$(command -v pm2)
+PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
 $PM2_CMD start server/dist/index.js --name kodakclout --env production
 

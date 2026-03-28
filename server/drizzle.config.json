@@ -1,0 +1,8 @@
+{
+  "schema": "./src/db/schema.ts",
+  "out": "./drizzle",
+  "driver": "mysql2",
+  "dbCredentials": {
+    "uri": "mysql://user:password@localhost:3306/kodakclout"
+  }
+}
