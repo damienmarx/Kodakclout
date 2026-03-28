@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.1 (Improved Path Support)
+# Version: 1.1.2 (Robust Path & Node Detection)
 
 set -e
 
@@ -39,38 +39,56 @@ export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
 sudo apt-get install -y curl git mariadb-client build-essential psmisc
 
-# Install Node.js if not present
+# 3. Node.js & npm Setup
+# Try to find node/npm in common paths
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 if ! command -v node &> /dev/null; then
-    log "Installing Node.js 20..."
+    log "Node.js not found. Installing Node.js 20..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt-get install -y nodejs
 fi
 
-# Ensure npm is available in the path for sudo
-NPM_PATH=$(command -v npm || which npm || echo "/usr/bin/npm")
+# Locate npm reliably
+NPM_CMD=$(command -v npm || which npm || echo "")
 
+# 4. pnpm & pm2 Setup
 # Install pnpm if not present
 if ! command -v pnpm &> /dev/null; then
     log "Installing pnpm..."
-    # Use standalone script if npm fails
-    curl -fsSL https://get.pnpm.io/install.sh | sh - || sudo "$NPM_PATH" install -g pnpm
+    # Try standalone installer first as it's more robust
+    curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(command -v bash)" bash - || true
+    
+    # Add to current path for this session
+    export PNPM_HOME="$HOME/.local/share/pnpm"
+    export PATH="$PNPM_HOME:$PATH"
+    
+    # If still not found, try npm
+    if ! command -v pnpm &> /dev/null && [ -n "$NPM_CMD" ]; then
+        sudo "$NPM_CMD" install -g pnpm || npm install -g pnpm
+    fi
 fi
 
-# Refresh path for pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
-export PATH="$PNPM_HOME:$PATH"
-
-# Install PM2 for process management
+# Install PM2 if not present
 if ! command -v pm2 &> /dev/null; then
     log "Installing PM2..."
-    sudo "$NPM_PATH" install -g pm2 || npm install -g pm2
+    if [ -n "$NPM_CMD" ]; then
+        sudo "$NPM_CMD" install -g pm2 || npm install -g pm2
+    else
+        # Last resort: try pnpm to install pm2
+        pnpm add -g pm2 || true
+    fi
 fi
 
-# 3. Setup Project
+# Final check for critical tools
+if ! command -v pnpm &> /dev/null; then error "pnpm could not be installed. Please install it manually."; fi
+if ! command -v pm2 &> /dev/null; then error "pm2 could not be installed. Please install it manually."; fi
+
+# 5. Setup Project
 log "Setting up project dependencies..."
 pnpm install
 
-# 4. Handle Environment Files
+# 6. Handle Environment Files
 log "Checking environment files..."
 if [ ! -f server/.env ]; then
     log "Creating default server/.env from template..."
@@ -83,11 +101,11 @@ if [ ! -f client/.env ]; then
     cp client/.env.example client/.env
 fi
 
-# 5. Build Shared Module
+# 7. Build Shared Module
 log "Building shared module..."
 cd shared && pnpm build && cd ..
 
-# 6. Database Migrations
+# 8. Database Migrations
 log "Running database migrations..."
 if grep -q "mysql://user:password" server/.env; then
     log "Skipping migrations: DATABASE_URL still has default placeholder."
@@ -95,23 +113,22 @@ else
     cd server && pnpm migrate && cd ..
 fi
 
-# 7. Build Frontend
+# 9. Build Frontend
 log "Building frontend..."
 cd client && pnpm build && cd ..
 
-# 8. Build Backend
+# 10. Build Backend
 log "Building backend..."
 cd server && pnpm build && cd ..
 
-# 9. Start/Restart Application with PM2
+# 11. Start/Restart Application with PM2
 log "Deploying with PM2..."
 export NODE_ENV=production
-# Ensure pm2 is in path for the current user
-PM2_PATH=$(command -v pm2 || which pm2 || echo "pm2")
-$PM2_PATH delete kodakclout 2>/dev/null || true
-$PM2_PATH start server/dist/index.js --name kodakclout --env production
+PM2_CMD=$(command -v pm2)
+$PM2_CMD delete kodakclout 2>/dev/null || true
+$PM2_CMD start server/dist/index.js --name kodakclout --env production
 
-# 10. Final Health Check
+# 12. Final Health Check
 log "Validating deployment..."
 sleep 5
 if curl -s http://localhost:8080/api/games > /dev/null; then
