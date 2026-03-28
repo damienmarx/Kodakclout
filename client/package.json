@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@kodakclout/shared": "workspace:*",
-    "@tanstack/react-query": "^5.20.2",
+    "@tanstack/react-query": "^4.18.0",
     "@trpc/client": "^10.45.1",
     "@trpc/react-query": "^10.45.1",
     "axios": "^1.6.7",

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, Play, Star, Flame, Clock } from "lucide-react";
+import { Search, Filter, Play, Star, Flame} from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { APP_NAME, GAME_CATEGORIES } from "@kodakclout/shared";
 
