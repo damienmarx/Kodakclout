@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.6 (Fixed Env Export & Health Checks)
+# Version: 1.1.7 (Self-Healing DB & Robust Env)
 
 set -e
 
@@ -48,7 +48,7 @@ fi
 log "Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools
+sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools jq
 
 # 3. Node.js & npm Setup
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
@@ -88,16 +88,20 @@ log "Checking environment files..."
 # ─── Robust Env Loading ───
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    # Export all variables from .env, ignoring comments and empty lines
-    # Using a more robust way to export variables with potential spaces or special chars
-    while IFS='=' read -r key value || [ -n "$key" ]; do
+    # Use a safe way to load env vars into the current shell
+    while read -r line || [ -n "$line" ]; do
+        # Remove leading/trailing whitespace
+        line=$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         # Skip comments and empty lines
-        if [[ $key =~ ^[[:space:]]*# ]] || [[ -z $key ]]; then
+        if [[ $line =~ ^# ]] || [[ -z $line ]]; then
             continue
         fi
+        # Split into key and value
+        key=$(echo "$line" | cut -d '=' -f 1)
+        value=$(echo "$line" | cut -d '=' -f 2-)
         # Remove potential surrounding quotes from value
-        value=$(echo "$value" | sed -E 's/^["'\'']|["'\'']$//g')
-        # Export the variable
+        value=$(echo "$value" | sed -e 's/^["'\'']//' -e 's/["'\'']$//')
+        # Export
         export "$key"="$value"
     done < server/.env
 fi
@@ -106,27 +110,40 @@ fi
 log "Building shared module..."
 (cd shared && pnpm build)
 
-# 8. Database Migrations
-log "Running database migrations..."
-if [ -z "$DATABASE_URL" ] || [[ "$DATABASE_URL" == *"user:password"* ]]; then
-    log "Skipping migrations: DATABASE_URL not configured correctly."
-else
-    # Update drizzle.config.json
-    sed -i "s|\"uri\": \".*\"|\"uri\": \"$DATABASE_URL\"|" server/drizzle.config.json
-    
-    log "Testing database connection to 127.0.0.1:3306..."
-    if ! nc -z 127.0.0.1 3306; then
-        log "WARNING: MariaDB (3306) is not reachable. Attempting to start service..."
-        if [ "$HAS_SYSTEMD" = true ]; then
-            sudo systemctl start mariadb || sudo service mariadb start || true
-        else
-            sudo service mariadb start || sudo /etc/init.d/mariadb start || true
-        fi
-        sleep 5
-    fi
-    
-    (cd server && pnpm migrate) || log "Migration failed. Check if MariaDB is running (sudo service mariadb status)."
+# 8. Database Initialization & Migrations
+log "Handling database..."
+if [ -z "$DATABASE_URL" ]; then
+    error "DATABASE_URL is not set in server/.env. Please configure it."
 fi
+
+# Ensure MariaDB is running
+if ! nc -z 127.0.0.1 3306; then
+    log "MariaDB not reachable. Attempting to start..."
+    if [ "$HAS_SYSTEMD" = true ]; then
+        sudo systemctl start mariadb || sudo service mariadb start || true
+    else
+        sudo service mariadb start || sudo /etc/init.d/mariadb start || true
+    fi
+    sleep 5
+fi
+
+# Self-Healing: Try to create DB and User if connection fails
+if ! mariadb -e "SELECT 1" >/dev/null 2>&1; then
+    log "Default connection failed. Attempting self-healing as root..."
+    sudo mariadb -u root <<EOF
+CREATE DATABASE IF NOT EXISTS kodakclout;
+CREATE USER IF NOT EXISTS 'clout_user'@'localhost' IDENTIFIED BY 'clout_pass';
+GRANT ALL PRIVILEGES ON kodakclout.* TO 'clout_user'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+    success "Database and user 'clout_user' created/verified."
+fi
+
+# Update drizzle.config.json
+sed -i "s|\"uri\": \".*\"|\"uri\": \"$DATABASE_URL\"|" server/drizzle.config.json
+
+log "Running migrations..."
+(cd server && pnpm migrate) || log "Migration failed. Continuing anyway..."
 
 # 9. Build Frontend & Backend
 log "Building frontend..."
@@ -141,7 +158,7 @@ if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     chmod +x "$SCRIPT_DIR/setup-cloudflared-v2.sh"
     "$SCRIPT_DIR/setup-cloudflared-v2.sh"
 else
-    log "CLOUDFLARE_API_TOKEN not set in environment. Skipping Cloudflared setup."
+    log "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflared setup."
 fi
 
 # 11. Start Application with PM2
@@ -149,25 +166,20 @@ log "Deploying with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
-# Start with explicit environment loading and a slightly longer wait for startup
 $PM2_CMD start server/dist/index.js --name kodakclout --update-env
 
 # 12. Final Health Check
-log "Validating deployment (waiting 10s for startup)..."
+log "Validating deployment (waiting 10s)..."
 sleep 10
-# Try both localhost and 127.0.0.1
 if curl -sf http://127.0.0.1:8080/api/health | grep -q 'ok' || curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
     success "Kodakclout is up and running!"
     log "Public URL: https://cloutscape.org"
 else
-    log "Health check failed at http://localhost:8080/api/health"
-    log "Checking PM2 status..."
-    $PM2_CMD status kodakclout
-    log "Last 20 lines of logs:"
-    $PM2_CMD logs kodakclout --lines 20 --no-daemon &
-    sleep 2
+    log "Health check failed. Showing last 30 lines of PM2 logs:"
+    $PM2_CMD logs kodakclout --lines 30 --no-daemon &
+    sleep 3
     kill $! 2>/dev/null || true
-    error "Deployment validation failed. See logs above for details."
+    error "Deployment failed. Check the logs above."
 fi
 
 success "Deployment complete."
