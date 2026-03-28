@@ -139,6 +139,14 @@ log "Building backend..."
 (cd server && pnpm build)
 
 # 11. Start/Restart Application with PM2
+log "Checking for Cloudflare Tunnel setup..."
+if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+    log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
+    "$SCRIPT_DIR/setup-cloudflared.sh"
+else
+    log "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflared setup."
+fi
+
 log "Deploying with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
@@ -196,7 +204,7 @@ sleep 5
 if curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
     success "Kodakclout is up and running!"
     log "Local URL:  http://localhost:8080"
-    log "Public URL: https://cloutscape.org"
+    log "Public URL: https://cloutscape.org (via Cloudflare Tunnel if configured)"
     log "Frontend:   Served via Express at the same URL"
     log "Casino:     https://cloutscape.org/games"
 else
