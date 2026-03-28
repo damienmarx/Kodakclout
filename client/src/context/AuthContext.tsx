@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { trpc } from "../lib/trpc";
 import { Session } from "@kodakclout/shared";
 
@@ -23,8 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logoutMutation.mutate();
   };
 
+  // Convert string date to Date object if needed
+  const session: Session | null = user ? {
+    ...user,
+    expiresAt: new Date(user.expiresAt)
+  } : null;
+
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, logout }}>
+    <AuthContext.Provider value={{ user: session, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );

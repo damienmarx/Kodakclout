@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, Filter, Play, Star, Flame} from "lucide-react";
 import { trpc } from "../lib/trpc";
-import { APP_NAME, GAME_CATEGORIES } from "@kodakclout/shared";
+import { APP_NAME, GAME_CATEGORIES, Game } from "@kodakclout/shared";
 import { useAuth } from "../context/AuthContext";
 
 export default function Games() {
@@ -102,7 +102,7 @@ export default function Games() {
   );
 }
 
-function GameCard({ game }: { game: any }) {
+function GameCard({ game }: { game: Game }) {
   return (
     <Link 
       to={`/game/${game.slug}`}
