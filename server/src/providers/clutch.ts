@@ -31,31 +31,8 @@ export class ClutchProvider {
 
   async getGames(): Promise<Game[]> {
     try {
-      // In a real scenario, we'd fetch from Clutch API
-      // For now, returning mock data that matches the shared schema
-      // In production, this would be: const response = await this.client.get("/games");
-      
-      return [
-        {
-          id: "cl-1",
-          slug: "clutch-slots-1",
-          title: "Clutch Slots Deluxe",
-          provider: "clutch",
-          category: "slots",
-          thumbnail: "https://placehold.co/400x300/1a1a1a/ffffff?text=Clutch+Slots",
-          isActive: true,
-          isHot: true
-        },
-        {
-          id: "cl-2",
-          slug: "clutch-roulette",
-          title: "Pro Roulette",
-          provider: "clutch",
-          category: "table",
-          thumbnail: "https://placehold.co/400x300/1a1a1a/ffffff?text=Roulette",
-          isActive: true
-        }
-      ];
+      const response = await this.client.get("/games");
+      return response.data;
     } catch (error) {
       console.error("Clutch getGames error:", error);
       return [];
@@ -64,13 +41,8 @@ export class ClutchProvider {
 
   async getLaunchUrl(gameSlug: string, userId: string): Promise<GameLaunchResponse> {
     try {
-      // Production: const response = await this.client.post(`/games/${gameSlug}/launch`, { userId });
-      // return response.data;
-      
-      return {
-        url: `https://clutch.io/play/${gameSlug}?token=mock_token_${userId}`,
-        token: `mock_token_${userId}`
-      };
+      const response = await this.client.post(`/games/${gameSlug}/launch`, { userId });
+      return response.data;
     } catch (error) {
       console.error("Clutch getLaunchUrl error:", error);
       throw new Error("Failed to launch game from provider");
@@ -79,9 +51,8 @@ export class ClutchProvider {
 
   async validateToken(token: string): Promise<boolean> {
     try {
-      // Production: const response = await this.client.post("/auth/validate", { token });
-      // return response.data.valid;
-      return true;
+      const response = await this.client.post("/auth/validate", { token });
+      return response.data.valid;
     } catch (error) {
       return false;
     }

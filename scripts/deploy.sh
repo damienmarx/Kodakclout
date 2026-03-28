@@ -108,6 +108,7 @@ sleep 5
 if curl -s http://localhost:3001/api/games > /dev/null; then
     success "Kodakclout is up and running!"
     log "Local URL: http://localhost:3001"
+    log "Public URL: https://cloutscape.org"
     log "Frontend: Served via backend at the same URL"
 else
     error "Health check failed. Check PM2 logs with 'pm2 logs kodakclout'"

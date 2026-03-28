@@ -5,8 +5,8 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { appRouter } from "./trpc/router";
-import { createContext } from "./trpc/trpc";
+import { appRouter } from "./trpc/router.js";
+import { createContext } from "./trpc/trpc.js";
 import { API_PREFIX, TRPC_PREFIX } from "@kodakclout/shared";
 
 dotenv.config();
@@ -49,7 +49,7 @@ app.get(`${API_PREFIX}/oauth/google/callback`, async (req, res) => {
 // Game Routes
 app.get(`${API_PREFIX}/games`, async (req, res) => {
   // Direct API for non-tRPC clients
-  const { appRouter } = await import("./trpc/router");
+  const { appRouter } = await import("./trpc/router.js");
   const caller = appRouter.createCaller({ req, res, user: null });
   try {
     const result = await caller.getGames({ page: 1, pageSize: 24 });

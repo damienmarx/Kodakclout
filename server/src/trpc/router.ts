@@ -1,6 +1,7 @@
-import { router, publicProcedure, protectedProcedure } from "./trpc";
+import { router, publicProcedure, protectedProcedure } from "./trpc.js";
+import { GamesQuery, Session } from "@kodakclout/shared";
 import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } from "@kodakclout/shared";
-import { ClutchProvider } from "../providers/clutch";
+import { ClutchProvider } from "../providers/clutch.js";
 import { z } from "zod";
 
 const clutch = ClutchProvider.getInstance();
@@ -9,7 +10,7 @@ export const appRouter = router({
   getGames: publicProcedure
     .input(GamesQuerySchema)
     .output(GamesListResponseSchema)
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: GamesQuery }) => {
       const { page, pageSize, category, search } = input;
       const allGames = await clutch.getGames();
       
@@ -40,12 +41,12 @@ export const appRouter = router({
   launchGame: protectedProcedure
     .input(z.object({ slug: z.string() }))
     .output(GameLaunchResponseSchema)
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: { slug: string }, ctx: { user: Session } }) => {
       const launch = await clutch.getLaunchUrl(input.slug, ctx.user.userId.toString());
       return launch;
     }),
 
-  me: publicProcedure.query(({ ctx }) => {
+  me: publicProcedure.query(({ ctx }: { ctx: { user: Session | null } }) => {
     return ctx.user;
   }),
 });
