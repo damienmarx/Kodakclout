@@ -1,0 +1,26 @@
+{
+  "name": "kodakclout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kodakclout – Casino platform by Damien",
+  "workspaces": [
+    "server",
+    "client",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+    "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter client build",
+    "start": "pnpm --filter server start",
+    "migrate": "pnpm --filter server migrate",
+    "lint": "pnpm --filter client lint && pnpm --filter server lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
