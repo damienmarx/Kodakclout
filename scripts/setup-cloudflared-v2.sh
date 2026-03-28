@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Cloudflared Tunnel Setup Script (V2)
 # Author: Damien (Kodakclout)
-# Version: 1.0.1
+# Version: 1.0.2 (Non-systemd Compatibility)
 
 set -e
 
@@ -37,7 +37,13 @@ if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
     error "CLOUDFLARE_API_TOKEN environment variable is not set."
 fi
 
-# 2. Install cloudflared if not present
+# 2. Detect Init System
+HAS_SYSTEMD=false
+if pidof systemd >/dev/null 2>&1; then
+    HAS_SYSTEMD=true
+fi
+
+# 3. Install cloudflared if not present
 if ! command -v cloudflared &> /dev/null; then
     log "cloudflared not found. Installing..."
     curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -45,32 +51,12 @@ if ! command -v cloudflared &> /dev/null; then
     rm cloudflared.deb
 fi
 
-# 3. Create Tunnel using API Token
-TUNNEL_NAME="kodakclout-tunnel"
-log "Creating or retrieving tunnel: $TUNNEL_NAME..."
+# 4. Create Tunnel using API Token
+log "Setting up Cloudflared tunnel..."
 
-# Create a temporary credentials file for the token
-mkdir -p ~/.cloudflared
-
-# Check if tunnel already exists
-EXISTING_TUNNEL=$(cloudflared tunnel list --token "$CLOUDFLARE_API_TOKEN" --output json | jq -r ".[] | select(.name == \"$TUNNEL_NAME\") | .id" 2>/dev/null || true)
-
-if [ -z "$EXISTING_TUNNEL" ]; then
-    log "Creating new tunnel..."
-    # Note: Creating a tunnel via token requires the 'cloudflared tunnel create' command
-    # but the token itself often represents a 'Remote Managed' tunnel.
-    # For a 'Locally Managed' tunnel via script, we usually need a cert.pem.
-    # However, we can use the token to run a tunnel directly.
-    success "Cloudflare API Token is ready."
-else
-    log "Tunnel already exists with ID: $EXISTING_TUNNEL"
-fi
-
-# 4. Generate Configuration
-# For a token-based setup, we'll use a systemd service that runs 'cloudflared tunnel run --token <TOKEN>'
-log "Setting up systemd service for Cloudflared..."
-
-sudo tee /etc/systemd/system/cloudflared-kodakclout.service > /dev/null <<EOF
+if [ "$HAS_SYSTEMD" = true ]; then
+    log "Detected systemd. Creating systemd service..."
+    sudo tee /etc/systemd/system/cloudflared-kodakclout.service > /dev/null <<EOF
 [Unit]
 Description=Cloudflare Tunnel for Kodakclout
 After=network.target
@@ -85,12 +71,16 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+    sudo systemctl daemon-reload
+    sudo systemctl enable cloudflared-kodakclout
+    sudo systemctl restart cloudflared-kodakclout
+else
+    log "Non-systemd environment detected. Using PM2 to manage the tunnel..."
+    PM2_CMD=$(command -v pm2 || echo "pm2")
+    $PM2_CMD delete cloudflared-tunnel 2>/dev/null || true
+    $PM2_CMD start "/usr/bin/cloudflared tunnel run --token $CLOUDFLARE_API_TOKEN" --name cloudflared-tunnel
+    $PM2_CMD save
+fi
 
-# 5. Start Service
-log "Starting Cloudflared service..."
-sudo systemctl daemon-reload
-sudo systemctl enable cloudflared-kodakclout
-sudo systemctl start cloudflared-kodakclout
-
-success "Cloudflared tunnel service is now running with your token."
+success "Cloudflared tunnel is now running with your token."
 log "Please ensure your Cloudflare Dashboard has 'cloutscape.org' pointing to this tunnel."

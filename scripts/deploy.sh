@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.4 (Robust Env Loading & DB Checks)
+# Version: 1.1.5 (Non-systemd / WSL2 Compatibility)
 
 set -e
 
@@ -32,15 +32,23 @@ cd "$PROJECT_ROOT"
 
 log "Starting Kodakclout deployment in $PROJECT_ROOT..."
 
-# 1. Detect OS
+# 1. Detect OS & Init System
 OS_TYPE=$(lsb_release -is 2>/dev/null || echo "Unknown")
 log "Detected OS: $OS_TYPE"
+
+HAS_SYSTEMD=false
+if pidof systemd >/dev/null 2>&1; then
+    HAS_SYSTEMD=true
+    log "Init system: systemd"
+else
+    log "Init system: SysVInit / Other (Non-systemd)"
+fi
 
 # 2. Install System Dependencies
 log "Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-sudo apt-get install -y curl git mariadb-client build-essential psmisc
+sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools
 
 # 3. Node.js & npm Setup
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
@@ -80,7 +88,6 @@ log "Checking environment files..."
 # ─── Robust Env Loading ───
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    # Export all variables from .env, ignoring comments and empty lines
     set -a
     source <(grep -v '^#' server/.env | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//; /^[[:space:]]*$/d')
     set +a
@@ -101,11 +108,15 @@ else
     log "Testing database connection to 127.0.0.1:3306..."
     if ! nc -z 127.0.0.1 3306; then
         log "WARNING: MariaDB (3306) is not reachable. Attempting to start service..."
-        sudo systemctl start mariadb || sudo service mariadb start || true
-        sleep 2
+        if [ "$HAS_SYSTEMD" = true ]; then
+            sudo systemctl start mariadb || sudo service mariadb start || true
+        else
+            sudo service mariadb start || sudo /etc/init.d/mariadb start || true
+        fi
+        sleep 5
     fi
     
-    (cd server && pnpm migrate) || log "Migration failed. Check if MariaDB is running and user permissions are correct."
+    (cd server && pnpm migrate) || log "Migration failed. Check if MariaDB is running (sudo service mariadb status)."
 fi
 
 # 9. Build Frontend & Backend
@@ -129,7 +140,6 @@ log "Deploying with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
-# Start with explicit environment loading
 $PM2_CMD start server/dist/index.js --name kodakclout --update-env
 
 # 12. Final Health Check
