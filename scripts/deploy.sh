@@ -34,9 +34,7 @@ log "Starting Kodakclout deployment in $PROJECT_ROOT..."
 
 # 1. Detect OS
 OS_TYPE=$(lsb_release -is 2>/dev/null || echo "Unknown")
-if [[ "$OS_TYPE" != "Ubuntu" && "$OS_TYPE" != "Debian" ]]; then
-    log "Warning: This script is optimized for Ubuntu/Debian. Proceeding anyway..."
-fi
+log "Detected OS: $OS_TYPE"
 
 # 2. Install System Dependencies (Non-interactive)
 log "Installing system dependencies..."
@@ -111,10 +109,16 @@ else
     fi
     
     log "Testing database connection..."
+    # On Debian, the service name is usually 'mariadb'
+    if ! sudo systemctl is-active --quiet mariadb; then
+        log "MariaDB service is not running. Attempting to start..."
+        sudo systemctl start mariadb || sudo service mariadb start || true
+    fi
+    
     if ! mariadb -e "SELECT 1" --connect-timeout=5 >/dev/null 2>&1; then
-        log "WARNING: Local MariaDB connection failed. Ensure MariaDB is running and the database exists."
-        log "You may need to run: sudo systemctl start mariadb"
-        log "And: mariadb -u root -e 'CREATE DATABASE IF NOT EXISTS kodakclout;'"
+        log "WARNING: Local MariaDB connection failed. Ensure the database exists."
+        log "Attempting to create database 'kodakclout'..."
+        sudo mariadb -e "CREATE DATABASE IF NOT EXISTS kodakclout;" || true
     fi
     
     (cd server && pnpm migrate) || log "Migration failed. Please check your DATABASE_URL in server/.env"
