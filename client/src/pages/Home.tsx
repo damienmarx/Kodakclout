@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { Play, Shield, Zap, LayoutGrid } from "lucide-react";
 import { APP_NAME } from "@kodakclout/shared";
+import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="flex flex-col min-h-screen">
       <nav className="border-b border-zinc-800/50 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-50">
@@ -10,9 +13,21 @@ export default function Home() {
           <Link to="/home" className="text-xl font-bold tracking-tighter bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
             {APP_NAME}
           </Link>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
             <Link to="/games" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">Games</Link>
-            <Link to="/login" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-indigo-500/20">Sign In</Link>
+            {user ? (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-zinc-400">Hi, <span className="text-white font-bold">{user.name}</span></span>
+                <button 
+                  onClick={logout}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium rounded-lg transition-all"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-all shadow-lg shadow-indigo-500/20">Sign In</Link>
+            )}
           </div>
         </div>
       </nav>

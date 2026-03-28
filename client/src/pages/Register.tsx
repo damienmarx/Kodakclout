@@ -1,41 +1,29 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Chrome, ShieldCheck, Mail, Lock, ArrowRight, Loader2, LogIn } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { UserPlus, Mail, Lock, User, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
 import { trpc } from "../lib/trpc";
-import { APP_NAME, API_PREFIX } from "@kodakclout/shared";
+import { APP_NAME } from "@kodakclout/shared";
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
 
-  useEffect(() => {
-    if (location.state && (location.state as any).message) {
-      setSuccessMsg((location.state as any).message);
-    }
-  }, [location]);
-
-  const loginMutation = trpc.auth.login.useMutation({
+  const registerMutation = trpc.auth.register.useMutation({
     onSuccess: () => {
-      navigate("/home");
+      navigate("/login", { state: { message: "Registration successful! Please login." } });
     },
     onError: (err) => {
       setError(err.message);
     },
   });
 
-  const handleGoogleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || ""}${API_PREFIX}/oauth/google`;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccessMsg("");
-    loginMutation.mutate({ email, password });
+    registerMutation.mutate({ name, email, password });
   };
 
   return (
@@ -48,24 +36,34 @@ export default function Login() {
             {APP_NAME}
           </Link>
           <div className="space-y-2">
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">Welcome Back</h1>
-            <p className="text-zinc-400">Secure access to your premium gaming account.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">Create Account</h1>
+            <p className="text-zinc-400">Join the premium gaming community.</p>
           </div>
         </div>
 
         <div className="bg-zinc-900/50 border border-zinc-800/50 p-8 rounded-3xl shadow-2xl backdrop-blur-xl space-y-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {successMsg && (
-              <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium">
-                {successMsg}
-              </div>
-            )}
             {error && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium">
                 {error}
               </div>
             )}
             
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Full Name</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-indigo-400 transition-colors" />
+                <input 
+                  type="text" 
+                  required
+                  placeholder="John Doe"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Email Address</label>
               <div className="relative group">
@@ -82,10 +80,7 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Password</label>
-                <button type="button" className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors">Forgot?</button>
-              </div>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Password</label>
               <div className="relative group">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-indigo-400 transition-colors" />
                 <input 
@@ -101,12 +96,12 @@ export default function Login() {
 
             <button 
               type="submit"
-              disabled={loginMutation.isLoading}
+              disabled={registerMutation.isLoading}
               className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 text-white font-bold rounded-2xl transition-all hover:bg-indigo-500 active:scale-95 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loginMutation.isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5" />}
-              Sign In
-              {!loginMutation.isLoading && <ArrowRight className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />}
+              {registerMutation.isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
+              Create Account
+              {!registerMutation.isLoading && <ArrowRight className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />}
             </button>
           </form>
 
@@ -115,33 +110,23 @@ export default function Login() {
               <span className="w-full border-t border-zinc-800"></span>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-zinc-900 px-4 text-zinc-500 font-bold">Or continue with</span>
+              <span className="bg-zinc-900 px-4 text-zinc-500 font-bold">Secure Registration</span>
             </div>
-          </div>
-
-          <div className="space-y-4">
-            <button 
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 py-4 bg-white text-black font-bold rounded-2xl transition-all hover:bg-zinc-200 active:scale-95 group"
-            >
-              <Chrome className="w-5 h-5" />
-              Google OAuth
-            </button>
           </div>
 
           <div className="flex items-start gap-4 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
             <ShieldCheck className="w-6 h-6 text-indigo-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-sm font-bold text-indigo-100">Zero-Knowledge Auth</p>
+              <p className="text-sm font-bold text-indigo-100">Encrypted Storage</p>
               <p className="text-xs text-indigo-400/80 leading-relaxed">
-                Your credentials are never stored on our servers. We use enterprise-grade OAuth for maximum security.
+                Passwords are salted and hashed using industry-standard bcrypt before being stored.
               </p>
             </div>
           </div>
         </div>
 
         <p className="text-center text-zinc-500 text-sm">
-          Don't have an account? <Link to="/register" className="text-indigo-400 font-bold hover:underline">Sign up now</Link>
+          Already have an account? <Link to="/login" className="text-indigo-400 font-bold hover:underline">Sign in</Link>
         </p>
       </div>
     </div>

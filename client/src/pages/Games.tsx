@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { Search, Filter, Play, Star, Flame} from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { APP_NAME, GAME_CATEGORIES } from "@kodakclout/shared";
+import { useAuth } from "../context/AuthContext";
 
 export default function Games() {
+  const { user, logout } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | undefined>(undefined);
 
@@ -36,7 +38,19 @@ export default function Games() {
             <button className="p-2 text-zinc-400 hover:text-white transition-colors md:hidden">
               <Filter className="w-5 h-5" />
             </button>
-            <Link to="/login" className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors">Sign In</Link>
+            {user ? (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-zinc-400 hidden sm:inline">Hi, <span className="text-white font-bold">{user.name}</span></span>
+                <button 
+                  onClick={logout}
+                  className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors">Sign In</Link>
+            )}
           </div>
         </div>
       </nav>

@@ -2,11 +2,13 @@ import { router, publicProcedure, protectedProcedure } from "./trpc.js";
 import { GamesQuery, Session } from "@kodakclout/shared";
 import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } from "@kodakclout/shared";
 import { ClutchProvider } from "../providers/clutch.js";
+import { authRouter } from "./auth.js";
 import { z } from "zod";
 
 const clutch = ClutchProvider.getInstance();
 
 export const appRouter = router({
+  auth: authRouter,
   getGames: publicProcedure
     .input(GamesQuerySchema)
     .output(GamesListResponseSchema)
