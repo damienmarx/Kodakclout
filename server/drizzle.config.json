@@ -3,6 +3,6 @@
   "out": "./drizzle",
   "driver": "mysql2",
   "dbCredentials": {
-    "uri": "mysql://user:password@localhost:3306/kodakclout"
+    "uri": "mysql://clout_user:clout_pass@127.0.0.1:3306/kodakclout"
   }
 }

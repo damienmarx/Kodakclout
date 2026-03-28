@@ -143,18 +143,64 @@ log "Deploying with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
-$PM2_CMD start server/dist/index.js --name kodakclout --env production
+# Start with NODE_ENV=production so Express serves the frontend build
+NODE_ENV=production $PM2_CMD start server/dist/index.js \
+    --name kodakclout \
+    --env production
 
-# 12. Final Health Check
+# 12. Generate Nginx config (if nginx is installed)
+if command -v nginx &> /dev/null; then
+    log "Generating Nginx reverse-proxy config for cloutscape.org..."
+    NGINX_CONF="/etc/nginx/sites-available/kodakclout"
+    sudo tee "$NGINX_CONF" > /dev/null <<'NGINXEOF'
+server {
+    listen 80;
+    server_name cloutscape.org www.cloutscape.org;
+
+    # Redirect HTTP -> HTTPS (Cloudflare handles SSL, but this is a safety net)
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name cloutscape.org www.cloutscape.org;
+
+    # Cloudflare Origin Certificates (place your cert/key here)
+    ssl_certificate     /etc/nginx/ssl/cloutscape.crt;
+    ssl_certificate_key /etc/nginx/ssl/cloutscape.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Proxy everything to the Node/Express server
+    location / {
+        proxy_pass         http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_read_timeout 60s;
+    }
+}
+NGINXEOF
+    sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/kodakclout 2>/dev/null || true
+    sudo nginx -t && sudo systemctl reload nginx || log "Nginx reload failed – check config manually."
+    log "Nginx configured for cloutscape.org -> http://127.0.0.1:8080"
+fi
+
+# 13. Final Health Check
 log "Validating deployment..."
 sleep 5
-if curl -s http://localhost:8080/api/games > /dev/null; then
+if curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
     success "Kodakclout is up and running!"
-    log "Local URL: http://localhost:8080"
+    log "Local URL:  http://localhost:8080"
     log "Public URL: https://cloutscape.org"
-    log "Frontend: Served via backend at the same URL"
+    log "Frontend:   Served via Express at the same URL"
+    log "Casino:     https://cloutscape.org/games"
 else
-    error "Health check failed. Check PM2 logs with 'pm2 logs kodakclout'"
+    error "Health check failed. Check PM2 logs with: pm2 logs kodakclout"
 fi
 
 success "Deployment complete. Zero-input script finished successfully."

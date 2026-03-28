@@ -17,15 +17,37 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true,
-}));
+const IS_PROD = process.env.NODE_ENV === "production";
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+// Allow the production domain, www variant, and localhost for dev.
+const allowedOrigins = [
+  process.env.CLIENT_URL || "https://cloutscape.org",
+  "https://www.cloutscape.org",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
-// tRPC
+// ─── Health Check ────────────────────────────────────────────────────────────
+app.get(`${API_PREFIX}/health`, (_req, res) => {
+  res.json({ status: "ok", ts: Date.now() });
+});
+
+// ─── tRPC ─────────────────────────────────────────────────────────────────────
 app.use(
   TRPC_PREFIX,
   trpcExpress.createExpressMiddleware({
@@ -46,10 +68,8 @@ app.get(`${API_PREFIX}/oauth/google/callback`, async (req, res) => {
   res.redirect(`${process.env.CLIENT_URL}/home`);
 });
 
-// Game Routes
+// ─── REST Game Route (non-tRPC clients) ──────────────────────────────────────
 app.get(`${API_PREFIX}/games`, async (req, res) => {
-  // Direct API for non-tRPC clients
-  const { appRouter } = await import("./trpc/router.js");
   const caller = appRouter.createCaller({ req, res, user: null });
   try {
     const result = await caller.getGames({ page: 1, pageSize: 24 });
@@ -59,12 +79,20 @@ app.get(`${API_PREFIX}/games`, async (req, res) => {
   }
 });
 
-// Production: Serve frontend
-if (process.env.NODE_ENV === "production") {
-  const clientDist = path.join(__dirname, "../../client/dist");
+// ─── Production: Serve Frontend ──────────────────────────────────────────────
+// __dirname in production = <project-root>/server/dist
+// client/dist             = <project-root>/client/dist
+if (IS_PROD) {
+  const clientDist = path.resolve(__dirname, "../../client/dist");
+
+  // Serve static assets (JS, CSS, images, etc.)
   app.use(express.static(clientDist));
+
+  // SPA catch-all: every non-API path returns index.html so React Router works
   app.get("*", (req, res) => {
-    if (!req.path.startsWith(API_PREFIX)) {
+    if (req.path.startsWith(API_PREFIX)) {
+      res.status(404).json({ error: "API route not found" });
+    } else {
       res.sendFile(path.join(clientDist, "index.html"));
     }
   });
@@ -72,5 +100,9 @@ if (process.env.NODE_ENV === "production") {
 
 app.listen(PORT, () => {
   console.log(`Kodakclout server running on port ${PORT}`);
+  console.log(`Environment: ${IS_PROD ? "production" : "development"}`);
   console.log(`tRPC endpoint: ${TRPC_PREFIX}`);
+  if (IS_PROD) {
+    console.log(`Frontend served from: ${path.resolve(__dirname, "../../client/dist")}`);
+  }
 });
