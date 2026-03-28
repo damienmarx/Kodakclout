@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.5 (Non-systemd / WSL2 Compatibility)
+# Version: 1.1.6 (Fixed Env Export & Health Checks)
 
 set -e
 
@@ -88,9 +88,18 @@ log "Checking environment files..."
 # ─── Robust Env Loading ───
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    set -a
-    source <(grep -v '^#' server/.env | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//; /^[[:space:]]*$/d')
-    set +a
+    # Export all variables from .env, ignoring comments and empty lines
+    # Using a more robust way to export variables with potential spaces or special chars
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        # Skip comments and empty lines
+        if [[ $key =~ ^[[:space:]]*# ]] || [[ -z $key ]]; then
+            continue
+        fi
+        # Remove potential surrounding quotes from value
+        value=$(echo "$value" | sed -E 's/^["'\'']|["'\'']$//g')
+        # Export the variable
+        export "$key"="$value"
+    done < server/.env
 fi
 
 # 7. Build Shared Module
@@ -140,16 +149,25 @@ log "Deploying with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
+# Start with explicit environment loading and a slightly longer wait for startup
 $PM2_CMD start server/dist/index.js --name kodakclout --update-env
 
 # 12. Final Health Check
-log "Validating deployment..."
-sleep 5
-if curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
+log "Validating deployment (waiting 10s for startup)..."
+sleep 10
+# Try both localhost and 127.0.0.1
+if curl -sf http://127.0.0.1:8080/api/health | grep -q 'ok' || curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
     success "Kodakclout is up and running!"
     log "Public URL: https://cloutscape.org"
 else
-    error "Health check failed. Check PM2 logs with: pm2 logs kodakclout"
+    log "Health check failed at http://localhost:8080/api/health"
+    log "Checking PM2 status..."
+    $PM2_CMD status kodakclout
+    log "Last 20 lines of logs:"
+    $PM2_CMD logs kodakclout --lines 20 --no-daemon &
+    sleep 2
+    kill $! 2>/dev/null || true
+    error "Deployment validation failed. See logs above for details."
 fi
 
 success "Deployment complete."
