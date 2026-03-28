@@ -109,7 +109,15 @@ else
     if [ -n "$DB_URL" ]; then
         sed -i "s|\"uri\": \".*\"|\"uri\": \"$DB_URL\"|" server/drizzle.config.json
     fi
-    (cd server && pnpm migrate)
+    
+    log "Testing database connection..."
+    if ! mariadb -e "SELECT 1" --connect-timeout=5 >/dev/null 2>&1; then
+        log "WARNING: Local MariaDB connection failed. Ensure MariaDB is running and the database exists."
+        log "You may need to run: sudo systemctl start mariadb"
+        log "And: mariadb -u root -e 'CREATE DATABASE IF NOT EXISTS kodakclout;'"
+    fi
+    
+    (cd server && pnpm migrate) || log "Migration failed. Please check your DATABASE_URL in server/.env"
 fi
 
 # 9. Build Frontend
