@@ -116,9 +116,15 @@ else
     fi
     
     if ! mariadb -e "SELECT 1" --connect-timeout=5 >/dev/null 2>&1; then
-        log "WARNING: Local MariaDB connection failed. Ensure the database exists."
-        log "Attempting to create database 'kodakclout'..."
-        sudo mariadb -e "CREATE DATABASE IF NOT EXISTS kodakclout;" || true
+        log "WARNING: Local MariaDB connection failed. This is likely a permission issue."
+        log "On Debian, the root user often uses unix_socket. Please run these commands manually:"
+        log "----------------------------------------------------------------"
+        log "sudo mariadb -u root -e \"CREATE DATABASE IF NOT EXISTS kodakclout;\""
+        log "sudo mariadb -u root -e \"CREATE USER IF NOT EXISTS 'clout_user'@'localhost' IDENTIFIED BY 'clout_pass';\""
+        log "sudo mariadb -u root -e \"GRANT ALL PRIVILEGES ON kodakclout.* TO 'clout_user'@'localhost';\""
+        log "sudo mariadb -u root -e \"FLUSH PRIVILEGES;\""
+        log "----------------------------------------------------------------"
+        log "Then update your server/.env with: DATABASE_URL=mysql://clout_user:clout_pass@127.0.0.1:3306/kodakclout"
     fi
     
     (cd server && pnpm migrate) || log "Migration failed. Please check your DATABASE_URL in server/.env"
