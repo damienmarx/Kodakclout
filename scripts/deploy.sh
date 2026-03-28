@@ -2,7 +2,7 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 1.1.0 (MariaDB Optimized)
+# Version: 1.1.1 (Improved Path Support)
 
 set -e
 
@@ -37,7 +37,6 @@ fi
 log "Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y
-# Install mariadb-client for MariaDB compatibility
 sudo apt-get install -y curl git mariadb-client build-essential psmisc
 
 # Install Node.js if not present
@@ -47,16 +46,24 @@ if ! command -v node &> /dev/null; then
     sudo apt-get install -y nodejs
 fi
 
+# Ensure npm is available in the path for sudo
+NPM_PATH=$(command -v npm || which npm || echo "/usr/bin/npm")
+
 # Install pnpm if not present
 if ! command -v pnpm &> /dev/null; then
     log "Installing pnpm..."
-    sudo npm install -g pnpm
+    # Use standalone script if npm fails
+    curl -fsSL https://get.pnpm.io/install.sh | sh - || sudo "$NPM_PATH" install -g pnpm
 fi
+
+# Refresh path for pnpm
+export PNPM_HOME="$HOME/.local/share/pnpm"
+export PATH="$PNPM_HOME:$PATH"
 
 # Install PM2 for process management
 if ! command -v pm2 &> /dev/null; then
     log "Installing PM2..."
-    sudo npm install -g pm2
+    sudo "$NPM_PATH" install -g pm2 || npm install -g pm2
 fi
 
 # 3. Setup Project
@@ -82,7 +89,6 @@ cd shared && pnpm build && cd ..
 
 # 6. Database Migrations
 log "Running database migrations..."
-# Note: Requires DATABASE_URL to be set in server/.env
 if grep -q "mysql://user:password" server/.env; then
     log "Skipping migrations: DATABASE_URL still has default placeholder."
 else
@@ -99,10 +105,11 @@ cd server && pnpm build && cd ..
 
 # 9. Start/Restart Application with PM2
 log "Deploying with PM2..."
-# We serve the frontend via the backend in production
 export NODE_ENV=production
-pm2 delete kodakclout 2>/dev/null || true
-pm2 start server/dist/index.js --name kodakclout --env production
+# Ensure pm2 is in path for the current user
+PM2_PATH=$(command -v pm2 || which pm2 || echo "pm2")
+$PM2_PATH delete kodakclout 2>/dev/null || true
+$PM2_PATH start server/dist/index.js --name kodakclout --env production
 
 # 10. Final Health Check
 log "Validating deployment..."
