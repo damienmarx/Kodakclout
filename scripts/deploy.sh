@@ -78,7 +78,7 @@ fi
 
 # 5. Setup Project
 log "Setting up project dependencies..."
-pnpm install --no-frozen-lockfile
+pnpm install --no-frozen-lockfile --yes
 
 # 6. Handle Environment Files
 log "Checking environment files..."
