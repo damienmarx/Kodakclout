@@ -156,8 +156,8 @@ log "Checking for Cloudflare Tunnel setup..."
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
     export CLOUDFLARE_API_TOKEN
-    chmod +x "$SCRIPT_DIR/setup-cloudflared-v2.sh"
-    "$SCRIPT_DIR/setup-cloudflared-v2.sh"
+    chmod +x "$SCRIPT_DIR/setup-cloudflared.sh"
+    "$SCRIPT_DIR/setup-cloudflared.sh"
 else
     log "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflared setup."
 fi
