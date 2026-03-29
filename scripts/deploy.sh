@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log() {
-    echo -e "${BLUE}[$(date +\'%Y-%m-%d %H:%M:%S\')]${NC} $1"
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
 success() {
@@ -78,7 +78,7 @@ fi
 
 # 5. Setup Project
 log "Setting up project dependencies..."
-pnpm install --no-frozen-lockfile --yes || error "Failed to install project dependencies."
+pnpm install --no-frozen-lockfile || error "Failed to install project dependencies."
 
 # 6. Handle Environment Files
 log "Checking environment files..."
