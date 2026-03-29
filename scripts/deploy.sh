@@ -2,15 +2,15 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 2.0.0 (Guaranteed Deployment)
+# Version: 2.1.0 (Bulletproof Deployment)
 
 set -e
 
 # Colors for logging
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+RED=\033[0;31m
+GREEN=\033[0;32m
+BLUE=\033[0;34m
+NC=\033[0m # No Color
 
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
@@ -28,7 +28,7 @@ error() {
 # Ensure we are in the project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT" || error "Failed to change to project root directory."
 
 log "Starting Kodakclout deployment in $PROJECT_ROOT..."
 
@@ -86,12 +86,16 @@ log "Checking environment files..."
 [ ! -f client/.env ] && cp client/.env.example client/.env && log "Created client/.env from template."
 
 # ─── Bulletproof Env Loading ───
+# Load environment variables from server/.env, strictly ignoring comments and invalid lines
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    TMP_ENV=$(mktemp)
-    grep -E '^[[:alnum:]_]+=.*' server/.env | sed 's/^/export /' > "$TMP_ENV"
-    source "$TMP_ENV"
-    rm "$TMP_ENV"
+    # Use awk to filter out comments and empty lines, then export valid key-value pairs
+    eval "$(awk 
+        /^#/ { next } 
+        /^[[:space:]]*$/ { next } 
+        /^[[:alnum:]_]+=.*$/ { print "export " $0 } 
+        server/.env
+    )"
 else
     error "server/.env file not found after creation attempt. Cannot proceed."
 fi
@@ -142,8 +146,7 @@ fi
 sed -i "s|\"uri\": \".*\"|\"uri\": \"$DATABASE_URL\"|" server/drizzle.config.json || error "Failed to update drizzle.config.json."
 
 log "Running migrations..."
-(cd server && pnpm migrate) || log "Migration failed or no changes. Continuing...
-"
+(cd server && pnpm migrate) || log "Migration failed or no changes. Continuing..."
 
 # 9. Build Frontend & Backend
 log "Building frontend..."
