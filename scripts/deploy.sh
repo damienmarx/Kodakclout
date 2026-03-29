@@ -90,7 +90,8 @@ if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
     # Export using a temporary file to avoid subshell issues and handle quotes/spaces
     TMP_ENV=$(mktemp)
-    grep -v '^#' server/.env | grep '=' | sed 's/^/export /' > "$TMP_ENV"
+    # Filter for lines that are not comments and contain an equals sign, then prepend 'export '
+    grep -E '^[[:alnum:]_]+=.*' server/.env | sed 's/^/export /' > "$TMP_ENV"
     source "$TMP_ENV"
     rm "$TMP_ENV"
 fi
