@@ -36,7 +36,7 @@ const createConnection = () => {
       console.log(`[DB] Connection ${connection.threadId} released`);
     });
 
-    pool.on("connection", (connection) => {
+    pool.on("connection", (_connection) => {
       console.log("[DB] New connection established in pool");
     });
 

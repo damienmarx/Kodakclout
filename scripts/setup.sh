@@ -18,6 +18,17 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 echo -e "${GREEN}🚀 Starting Kodakclout Unified Setup...${NC}"
 
+# 0. Ownership & Permissions Management
+log "Ensuring correct repository ownership for $USER..."
+sudo chown -R $USER:$USER .
+sudo chmod -R u+rw .
+success "Ownership and permissions set to $USER."
+
+# 0.1 Sudo Access Check
+if ! sudo -n true 2>/dev/null; then
+    warn "Sudo access without password is not configured. You may be prompted for your password."
+fi
+
 # 1. Local Environment Conflict Purge
 log "Purging local environment conflicts..."
 # Remove old node_modules, lockfiles, and build artifacts

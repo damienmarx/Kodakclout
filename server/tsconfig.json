@@ -10,12 +10,13 @@
       "@kodakclout/shared/*": ["../shared/src/*"]
     },
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDirs": [".", "../shared"],
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
