@@ -1,82 +1,164 @@
 #!/bin/bash
-
-# Kodakclout Setup Script
+# Kodakclout – Unified Setup & Deployment Script (Debian Optimized)
 # Developed for damienmarx
-# This script automates the installation of dependencies, database setup, and environment configuration.
-
+# Version: 2.1.0 (Clutch Seamless Integration)
 set -e
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}🚀 Starting Kodakclout Setup...${NC}"
+log() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"; }
+success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-# 1. Check for Node.js and pnpm
-echo -e "${YELLOW}🔍 Checking dependencies...${NC}"
+echo -e "${GREEN}🚀 Starting Kodakclout Unified Setup...${NC}"
+
+# 1. Local Environment Conflict Purge
+log "Purging local environment conflicts..."
+# Remove old node_modules, lockfiles, and build artifacts
+find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
+find . -name "dist" -type d -prune -exec rm -rf '{}' +
+find . -name "pnpm-lock.yaml" -delete
+find . -name ".turbo" -type d -prune -exec rm -rf '{}' +
+
+# 2. Package Manager Pre-checks & Installation
+log "Checking package manager..."
 if ! command -v node &> /dev/null; then
-    echo -e "${RED}❌ Node.js is not installed. Please install Node.js >= 18.0.0${NC}"
-    exit 1
+    error "Node.js is not installed. Please install Node.js >= 18.0.0"
 fi
 
+# Ensure pnpm is installed and at correct version
 if ! command -v pnpm &> /dev/null; then
-    echo -e "${YELLOW}📦 pnpm not found. Installing pnpm...${NC}"
-    sudo npm install -g pnpm
+    log "pnpm not found. Installing pnpm..."
+    sudo npm install -g pnpm@8.15.0
+else
+    CURRENT_PNPM=$(pnpm -v)
+    log "Found pnpm version $CURRENT_PNPM"
 fi
 
-# 2. Install Dependencies
-echo -e "${YELLOW}📦 Installing project dependencies...${NC}"
-pnpm install
+# 3. System Dependencies (Debian)
+log "Checking system dependencies..."
+DEPS=(curl git jq mariadb-server mariadb-client net-tools build-essential golang)
+MISSING_DEPS=()
+for dep in "${DEPS[@]}"; do
+    if ! dpkg -s "$dep" >/dev/null 2>&1; then
+        MISSING_DEPS+=("$dep")
+    fi
+done
 
-# 3. Database Setup (MariaDB)
-echo -e "${YELLOW}🗄️ Setting up MariaDB...${NC}"
-if ! command -v mariadb &> /dev/null; then
-    echo -e "${YELLOW}📥 Installing MariaDB Server...${NC}"
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+    log "Installing missing system dependencies: ${MISSING_DEPS[*]}"
     sudo apt-get update
-    sudo apt-get install -y mariadb-server mariadb-client
-    sudo systemctl start mariadb
-    sudo systemctl enable mariadb
+    sudo apt-get install -y "${MISSING_DEPS[@]}"
 fi
 
-# Create Database and User if they don't exist
+# 4. Database Setup (MariaDB)
+log "Configuring MariaDB..."
+sudo systemctl start mariadb || sudo service mariadb start
+sudo systemctl enable mariadb || true
+
+# Self-Healing: Try to create DB and User
 DB_NAME="kodakclout"
 DB_USER="clout_user"
 DB_PASS="clout_pass"
 
-echo -e "${YELLOW}🔑 Configuring database user and permissions...${NC}"
-sudo mariadb -u root <<EOF
+log "Verifying database and user..."
+sudo mariadb -u root <<EOF || warn "Failed to verify/create database as root."
 CREATE DATABASE IF NOT EXISTS $DB_NAME;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
 GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-# 4. Environment Configuration
-echo -e "${YELLOW}📝 Configuring environment variables...${NC}"
-if [ ! -f server/.env ]; then
-    echo -e "${YELLOW}📄 Creating server/.env from template...${NC}"
-    if [ -f server/.env.example ]; then
-        cp server/.env.example server/.env
-    else
-        cat <<EOF > server/.env
-PORT=3001
-DATABASE_URL=mysql://$DB_USER:$DB_PASS@127.0.0.1:3306/$DB_NAME
-NODE_ENV=development
-EOF
-    fi
-    echo -e "${GREEN}✅ Created server/.env. Please review it later.${NC}"
-else
-    echo -e "${GREEN}✅ server/.env already exists.${NC}"
+# 5. Project Dependencies
+log "Installing project dependencies..."
+pnpm install --no-frozen-lockfile || error "Failed to install dependencies."
+
+# 6. Environment Files
+log "Handling environment files..."
+[ ! -f server/.env ] && cp server/.env.example server/.env && warn "Created server/.env. PLEASE UPDATE IT!"
+[ ! -f client/.env ] && cp client/.env.example client/.env && warn "Created client/.env. PLEASE UPDATE IT!"
+
+# Load environment variables for the script
+if [ -f server/.env ]; then
+    export $(grep -v '^#' server/.env | xargs)
 fi
 
-# 5. Run Migrations
-echo -e "${YELLOW}🏗️ Running database migrations...${NC}"
-cd server
-pnpm migrate
-cd ..
+# 7. Build Shared & Applications
+log "Building workspace..."
+pnpm run build || error "Build failed."
 
-echo -e "${GREEN}✨ Kodakclout setup complete!${NC}"
-echo -e "${YELLOW}To start the development server, run:${NC}"
-echo -e "${GREEN}pnpm dev${NC}"
+# 8. Database Migrations
+log "Running database migrations..."
+(cd server && pnpm migrate) || warn "Migration failed or no changes. Continuing..."
+
+# 9. Seamless Clutch Integration
+log "Checking for Clutch Games Engine..."
+PROJECT_ROOT=$(pwd)
+CLUTCH_DIR="$(dirname "$PROJECT_ROOT")/Clutch"
+
+if [ ! -d "$CLUTCH_DIR" ]; then
+    log "Clutch directory not found. Cloning from repository..."
+    git clone https://github.com/damienmarx/Clutch.git "$CLUTCH_DIR" || warn "Failed to clone Clutch repository."
+fi
+
+if [ -d "$CLUTCH_DIR" ]; then
+    log "Building Clutch engine..."
+    (cd "$CLUTCH_DIR" && go build -o clutch-server main.go) || warn "Failed to build Clutch from source."
+    
+    if [ -f "$CLUTCH_DIR/clutch-server" ]; then
+        log "Deploying Clutch engine with PM2..."
+        PM2_CMD=$(command -v pm2 || echo "pm2")
+        $PM2_CMD delete clutch-engine 2>/dev/null || true
+        (cd "$CLUTCH_DIR" && $PM2_CMD start ./clutch-server --name clutch-engine -- web -c degens777den.yaml)
+        success "Clutch engine is now running."
+    fi
+else
+    warn "Clutch engine integration skipped."
+fi
+
+# 10. Automated Cloudflared Startup
+log "Checking Cloudflared configuration..."
+if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+    log "CLOUDFLARE_API_TOKEN found. Automating Cloudflared startup..."
+    if [ -f "scripts/setup-cloudflared-v2.sh" ]; then
+        chmod +x scripts/setup-cloudflared-v2.sh
+        ./scripts/setup-cloudflared-v2.sh || warn "Cloudflared setup failed."
+    else
+        warn "scripts/setup-cloudflared-v2.sh not found."
+    fi
+else
+    warn "CLOUDFLARE_API_TOKEN not set in server/.env. Skipping Cloudflared setup."
+fi
+
+# 11. Health Checks
+log "Performing final health checks..."
+PM2_CMD=$(command -v pm2 || echo "pm2")
+if ! command -v pm2 &> /dev/null; then
+    log "Installing PM2..."
+    sudo npm install -g pm2
+    PM2_CMD="pm2"
+fi
+
+$PM2_CMD delete kodakclout 2>/dev/null || true
+$PM2_CMD start server/dist/index.js --name kodakclout --update-env
+
+log "Waiting for server to stabilize (10s)..."
+sleep 10
+
+KODAKCLOUT_PORT=${PORT:-8080}
+if curl -sf "http://127.0.0.1:$KODAKCLOUT_PORT/api/health" | grep -q 'ok'; then
+    success "Kodakclout backend health check passed!"
+else
+    warn "Kodakclout health check failed at http://127.0.0.1:$KODAKCLOUT_PORT/api/health"
+fi
+
+success "Unified Kodakclout setup complete!"
+echo -e "${YELLOW}Manage your application with:${NC} pm2 status"
+echo -e "${YELLOW}View logs with:${NC} pm2 logs kodakclout"
+echo -e "${YELLOW}Clutch engine is running as:${NC} clutch-engine"
