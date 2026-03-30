@@ -11,6 +11,9 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared/src"),
       // Required for the trpc.ts import: `import type { AppRouter } from "@server/trpc/router"`
       "@server": path.resolve(__dirname, "../server/src"),
+      // Resolve the workspace package directly from source so Vite never
+      // needs a pre-built shared/dist (which is git-ignored).
+      "@kodakclout/shared": path.resolve(__dirname, "../shared/src/index.ts"),
     },
   },
   build: {
