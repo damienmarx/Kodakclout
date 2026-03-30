@@ -1,165 +1,93 @@
 # Kodakclout Monorepo - DegensDen Edition
 
-Welcome to the **DegensDen** edition of the Kodakclout monorepo, a premium gambling private community designed for 350 elite players. This platform integrates a robust backend with a polished frontend, featuring 340 games from the Clutch provider, all within a scalable and high-performance monorepo structure. The landing page has been styled with a dark red obsidian theme, exclusive fonts, and a unique texture to reflect the community's exclusive nature.
+Welcome to the **DegensDen** edition of the Kodakclout monorepo, a premium gambling private community designed for 350 elite players. This platform integrates a robust backend with a polished frontend, featuring games from the Clutch provider, all within a scalable and high-performance monorepo structure. The landing page has been styled with a dark red obsidian theme, exclusive fonts, and a unique texture to reflect the community's exclusive nature.
 
-## Project Structure
+## 🏗️ Architecture Overview: One Frontend, Two Backends
 
-The monorepo is organized into the following key directories:
+The platform is built on a robust "One Frontend, Two Backends" architecture, allowing for optimal performance and scalability:
 
--   **`/server`**: Contains the backend application, built with Express, tRPC, Google OAuth, and MySQL (via Drizzle ORM). It includes the integration with the Clutch game provider.
--   **`/client`**: Houses the frontend application, developed using React 18, Vite 5, and `shadcn/ui` components. It interacts with the backend via a tRPC client and displays games within iframes.
--   **`/shared`**: A module for shared types, constants, and Zod schemas, ensuring type safety and consistency across the frontend and backend.
--   **`/scripts`**: Stores automated deployment scripts for streamlined setup and deployment.
+| Component | Technology Stack | Role & Responsibilities |
+| :-------- | :--------------- | :---------------------- |
+| **Frontend** | `React`, `Vite`, `TypeScript`, `TailwindCSS`, `shadcn/ui` | The user-facing interface, providing the casino lobby, game browsing, user authentication flows, and embedding the game engine via iframes. |
+| **Backend (Node.js)** | `Express`, `tRPC`, `MariaDB`, `TypeScript`, `Drizzle ORM` | The primary orchestrator. It manages user accounts, sessions, game metadata, authentication, and acts as the bridge between the frontend and the high-performance Go game engine. |
+| **Backend (Go)** | `Clutch Game Engine`, `GoLang`, `SQLite` | The high-performance game engine responsible for all core game logic, including RNG (Random Number Generation), game state management, and real-time game session handling. It uses SQLite for its internal, high-speed data storage. |
 
-## Technologies Used
+### 🔄 How They Work Together
 
-### Backend (`/server`)
+1.  **User Interaction**: Players access the **React Frontend** to browse available games and manage their accounts.
+2.  **Game Listing**: The **React Frontend** communicates with the **Node.js Backend** via `tRPC` to fetch the list of available games.
+3.  **Engine Integration**: The **Node.js Backend** queries the **Go Backend (Clutch)** to retrieve game details and session information.
+4.  **Game Launch**: When a player selects a game, the **Node.js Backend** initiates a secure game session with the **Go Backend**, which then provides a unique launch URL.
+5.  **Seamless Play**: The **React Frontend** embeds this launch URL within a secure iframe, allowing players to interact directly with the high-performance **Go Game Engine** without leaving the main platform interface.
 
--   **Framework**: Express.js
--   **API Layer**: tRPC
--   **Authentication**: Google OAuth
--   **Database**: MariaDB / MySQL (with Drizzle ORM)
--   **Language**: TypeScript
--   **Game Integration**: Clutch Provider
+## 🟢 Current Features (Fully Functional)
 
-### Frontend (`/client`)
+As of the latest commit, the Kodakclout platform boasts the following fully operational features:
 
--   **Framework**: React 18
--   **Build Tool**: Vite 5
--   **UI Library**: `shadcn/ui` (built on Tailwind CSS)
--   **State Management/Data Fetching**: React Query, tRPC Client
--   **Routing**: React Router DOM
--   **Language**: TypeScript
+*   **Unified Build System**: A robust monorepo setup ensures that running `pnpm build` from the root correctly compiles the `shared` package, the `Node.js Server`, and the `React Frontend` in the correct order, resolving all inter-package dependencies. This includes fixes for shared folder imports and cross-package resolution.
+*   **Bulletproof Deployment**: The `scripts/deploy.sh` script is hardened for **Debian** environments. It automatically detects and installs necessary system dependencies (Node.js, Go 1.25+, MariaDB client), builds both backends from source, and manages both the Node.js and Go applications using `PM2` for continuous uptime and automatic restarts. It includes auto-provisioning for Go 1.25+.
+*   **Real Game Integration**: The `Node.js Backend` is fully integrated with the `Clutch Go Engine` (running on port `8081`). It can fetch real-time game lists and generate secure session launch URLs for games.
+*   **Dynamic Game Lobby**: The `React Frontend` dynamically displays games synced from the `Clutch` engine. Users can browse, select, and launch games, which are then rendered within a secure iframe for a seamless playing experience.
+*   **Hybrid Database Layer**: `MariaDB` is used by the Node.js backend for managing user accounts, sessions, and game metadata via Drizzle ORM. The `Clutch` engine utilizes `SQLite` for its internal, high-speed game state and logic, providing optimal performance for game operations.
+*   **Secure Authentication Keys**: High-entropy, 256-bit production authentication keys have been generated and configured within the `Clutch` engine (`degens777den.yaml`) to ensure cryptographic security for all game sessions.
 
-### Shared (`/shared`)
+## 🚀 Deployment Guide (for Debian)
 
--   **Type Management**: TypeScript
--   **Schema Validation**: Zod
+To deploy the entire Kodakclout platform on your Debian server, follow these steps:
 
-## Setup and Development
-
-To get the Kodakclout project up and running in a development environment, follow these steps:
-
-1.  **Clone the repository**:
+1.  **Pull Latest Changes**: Ensure your local repository is up-to-date with the latest fixes and features:
     ```bash
-    git clone https://github.com/damienmarx/Kodakclout.git
-    cd Kodakclout
+    git pull origin main
     ```
 
-2.  **Install pnpm**: This project uses pnpm for efficient monorepo package management. If you don't have it installed, run:
+2.  **Configure Environment Variables**: Create `.env` files in both the `server/` and `client/` directories based on their respective `.env.example` templates. The most critical variable to set in `server/.env` is your `DATABASE_URL` for MariaDB (e.g., `mysql://clout_user:clout_pass@localhost:3306/kodakclout`). You will also need to set `CLUTCH_API_URL=http://localhost:8081` and `CLUTCH_API_KEY` (from `degens777den.yaml`). Optionally, set `CLOUDFLARE_API_TOKEN` for automated tunnel setup.
+
+3.  **Run the Unified Deployment Script**: This single command will handle all system dependency installations, Go version management, building of all components, and starting both backends with PM2:
     ```bash
-    npm install -g pnpm
+    chmod +x scripts/deploy.sh
+    sudo ./scripts/deploy.sh
     ```
+    *The `sudo` command is necessary for installing system-level dependencies and managing services.* The script will automatically detect your Debian environment, install Go 1.25+ if needed, and ensure MariaDB is running.
 
-3.  **Install dependencies**: From the root of the monorepo, install all project dependencies:
-    ```bash
-    pnpm install
-    ```
-
-4.  **Environment Variables**: Create `.env` files for both the `server` and `client` based on their respective `.env.example` templates. Populate them with your actual credentials and configurations.
-
-    -   `server/.env`:
-        ```
-        PORT=8080
-        NODE_ENV=development
-        CLIENT_URL=http://localhost:5173
-        DATABASE_URL=mysql://user:password@localhost:3306/kodakclout
-        JWT_SECRET=your_jwt_secret_here
-        GOOGLE_CLIENT_ID=your_google_client_id
-        GOOGLE_CLIENT_SECRET=your_google_client_secret
-        CLUTCH_API_URL=http://localhost:8081 # Clutch backend now runs on 8081
-        CLUTCH_API_KEY=your_clutch_api_key
-        ```
-
-    -   `client/.env`:
-        ```
-        VITE_API_URL=http://localhost:8080 # Frontend proxies /api to backend on 8080
-        VITE_APP_NAME=Kodakclout
-        ```
-
-5.  **Database Setup**: Ensure your MariaDB/MySQL server is running and accessible. Then, run the database migrations from the `server` directory:
+4.  **Sync Game Data**: After the deployment script completes and the Clutch engine is running (typically on port `8081`), you need to populate your Kodakclout database with the available games from Clutch:
     ```bash
     cd server
-    pnpm migrate
-    cd ..
+    pnpm exec tsx ../scripts/seed-games.ts
     ```
-    *Note: The `pnpm migrate` command uses `drizzle-kit push:mysql` to apply schema changes to your database. Ensure your `DATABASE_URL` in `server/.env` is correctly configured.*
+    This script will fetch the game list from the running Clutch engine and insert/update them in your MariaDB database, making them visible in the frontend lobby.
 
-6.  **Start Development Servers**: From the root of the monorepo, start both the Kodakclout backend and frontend development servers concurrently:
-    ```bash
-    pnpm dev
-    ```
-    The Kodakclout frontend will be available at `http://localhost:5173` and the Kodakclout backend API at `http://localhost:8080/api`.
+## 🚦 Monitoring and Maintenance
 
-7.  **Start Clutch Backend**: Navigate to the `Clutch` directory and start the Clutch backend on port 8081. (Assuming you have the Clutch repository cloned and built as per its instructions):
+*   **Check Application Status**: To see if both `kodakclout` (Node.js backend) and `clutch-engine` (Go backend) are running:
     ```bash
-    cd ../Clutch
-    # Example command to start Clutch, adjust as per Clutch's README
-    ./slot_linux_x64 -c degens777den.yaml web
-    cd ../Kodakclout
+    pm2 status
     ```
-    *Note: The `degens777den.yaml` file in the Clutch repository has been updated to use port 8081.*
+*   **View Live Logs**: To see real-time logs from all managed processes:
+    ```bash
+    pm2 logs
+    ```
+*   **Restart Applications**: To restart both backends:
+    ```bash
+    pm2 restart all
+    ```
+*   **Update Code & Redeploy**: To pull new code and redeploy the entire stack:
+    ```bash
+    git pull origin main
+    sudo ./scripts/deploy.sh
+    ```
 
 ## Port Alignment and Connectivity
 
 To ensure seamless operation, the following port configurations are used:
 
-| Component               | Development Port | Production Port (via Cloudflare) |
+| Component | Development Port | Production Port (via Cloudflare) |
 | :---------------------- | :--------------- | :------------------------------- |
-| **Kodakclout Frontend** | `5173`           | `443` (cloutscape.org)           |
-| **Kodakclout Backend**  | `8080`           | `443` (cloutscape.org/api)       |
-| **Clutch Backend**      | `8081`           | `443` (games.cloutscape.org)     |
+| **Kodakclout Frontend** | `5173` | `443` (cloutscape.org) |
+| **Kodakclout Backend** | `8080` | `443` (cloutscape.org/api) |
+| **Clutch Backend** | `8081` | `443` (games.cloutscape.org) |
 
 -   In **development**, the Kodakclout frontend (Vite) runs on `5173` and proxies `/api` requests to the Kodakclout backend (Express) running on `8080`. The Clutch backend runs separately on `8081`.
 -   In **production**, both Kodakclout frontend and backend are served from `cloutscape.org` (port `443`) via Cloudflare Tunnel. The Clutch backend will be exposed via a subdomain, e.g., `games.cloutscape.org`, also proxied through Cloudflare Tunnel.
-
-## Automated Deployment (Debian/Ubuntu)
-
-The monorepo includes a zero-input automated deployment script designed for Ubuntu/Debian-based systems. This script handles system dependency installation, project setup, building, and starting the application with PM2.
-
-To deploy your application to a production server, simply copy the entire `Kodakclout` directory to your server and run the deployment script:
-
-```bash
-cd /path/to/your/Kodakclout
-sudo ./scripts/deploy.sh
-```
-
-**Key features of `deploy.sh`:**
-
--   **OS Detection**: Optimized for Ubuntu/Debian.
--   **Dependency Installation**: Installs Node.js, pnpm, MySQL client, git, and PM2.
--   **Project Setup**: Installs monorepo dependencies.
--   **Environment Management**: Creates `.env` files from templates if they don't exist (requires manual update of sensitive variables).
--   **Build Process**: Builds shared, client, and server modules.
--   **Database Migrations**: Runs Drizzle migrations.
--   **Process Management**: Starts the server using PM2 for production-grade process management.
--   **Health Checks**: Validates deployment by checking API endpoint.
--   **Idempotent & Safe**: Can be re-run safely without adverse effects.
-
-## Cloudflare Dashboard Setup (for cloutscape.org and games.cloutscape.org)
-
-For production deployment with `cloutscape.org` and `games.cloutscape.org`, you will need to configure Cloudflare Tunnels. Here's a general guide:
-
-1.  **Install `cloudflared`**: Follow the instructions in `./scripts/setup-cloudflared.sh` to install and authenticate `cloudflared` on your Debian server.
-
-2.  **Create a Cloudflare Tunnel for Kodakclout**: 
-    -   In your Cloudflare Dashboard, navigate to **Zero Trust** > **Access** > **Tunnels**.
-    -   Create a new tunnel (e.g., `kodakclout-tunnel`).
-    -   Follow the steps to connect `cloudflared` on your server to this tunnel.
-    -   Configure **Public Hostnames** for this tunnel:
-        -   **Subdomain**: `cloutscape.org` (or leave blank for root domain)
-        -   **Service**: `HTTP` -> `localhost:8080` (This routes requests for your main domain to the Kodakclout backend, which serves the frontend in production).
-        -   **Subdomain**: `api.cloutscape.org`
-        -   **Service**: `HTTP` -> `localhost:8080` (This routes API requests to the Kodakclout backend).
-
-3.  **Create a Cloudflare Tunnel for Clutch**: 
-    -   Create another new tunnel (e.g., `clutch-tunnel`).
-    -   Connect `cloudflared` on your server to this new tunnel.
-    -   Configure **Public Hostnames** for this tunnel:
-        -   **Subdomain**: `games.cloutscape.org`
-        -   **Service**: `HTTP` -> `localhost:8081` (This routes requests for the Clutch games to the Clutch backend).
-
-4.  **DNS Records**: Ensure your DNS records in Cloudflare point to the respective tunnels. For `cloutscape.org`, `api.cloutscape.org`, and `games.cloutscape.org`, you will typically create `CNAME` records pointing to the tunnel's generated `cfargotunnel.com` address.
 
 ## Path Aliases
 
