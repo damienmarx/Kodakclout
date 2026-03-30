@@ -142,16 +142,16 @@ else
     warn "CLOUDFLARE_API_TOKEN not set in server/.env. Skipping Cloudflared setup."
 fi
 
-# 11. Final Health Checks & PM2 Deployment
-log "Performing final health checks..."
-PM2_CMD=$(command -v pm2 || echo "pm2")
-if ! command -v pm2 &> /dev/null; then
-    log "Installing PM2..."
-    sudo npm install -g pm2
-    PM2_CMD="pm2"
+# 11. Final Health Checks & PM2 Deployment (Guaranteed)
+log "Performing final health checks and PM2 deployment..."
+if [ -f "scripts/fix-pm2.sh" ]; then
+    chmod +x scripts/fix-pm2.sh
+    ./scripts/fix-pm2.sh || error "Failed to configure PM2 automatically."
+else
+    error "scripts/fix-pm2.sh not found. Cannot proceed with PM2 setup."
 fi
 
-$PM2_CMD delete kodakclout 2>/dev/null || true
+PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD start server/dist/server/src/index.js --name kodakclout --update-env
 
 log "Waiting for server to stabilize (10s)..."
