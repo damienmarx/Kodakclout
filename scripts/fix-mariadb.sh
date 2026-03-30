@@ -1,6 +1,6 @@
 #!/bin/bash
 # Kodakclout – MariaDB Universal Repair Script (Debian Optimized)
-# Version: 1.1.0 (Non-systemd & Zero-Password Root Support)
+# Version: 1.1.1 (Non-systemd & Interactive Root Support)
 set -e
 
 # Environment Isolation
@@ -30,27 +30,25 @@ else
     sudo service mariadb start || sudo /etc/init.d/mariadb start
 fi
 
-# 2. MariaDB Root Access Recovery (Guaranteed)
+# 2. MariaDB Root Access Recovery (Interactive)
 DB_NAME="kodakclout"
 DB_USER="clout_user"
 DB_PASS="clout_pass"
 
 log "Configuring database and user (Adaptive Root Access)..."
 
-# Try multiple ways to access root MariaDB (Socket first, then no-password)
-# We use sudo to leverage the unix_socket plugin which is default on Debian root.
+# Test for root access without password (using sudo/unix_socket)
 if sudo mariadb -e "SELECT 1;" &> /dev/null; then
     SQL_CMD="sudo mariadb"
-elif sudo mysql -e "SELECT 1;" &> /dev/null; then
-    SQL_CMD="sudo mysql"
+    log "Using password-less root access via sudo..."
 else
-    warn "Direct root access failed. Attempting password-less recovery mode..."
-    # If root access is totally blocked, we can't easily fix it without manual intervention
-    # but we'll try one last 'empty password' attempt.
-    SQL_CMD="sudo mariadb -u root"
+    warn "Direct password-less root access failed."
+    echo -e "${YELLOW}Please enter your MariaDB ROOT password (or press Enter if none):${NC}"
+    read -s ROOT_PASS
+    SQL_CMD="mariadb -u root -p${ROOT_PASS}"
 fi
 
-$SQL_CMD <<EOF || error "Failed to execute SQL commands as root. Please check MariaDB root permissions."
+$SQL_CMD <<EOF || error "Failed to execute SQL commands. Please ensure you have root access to MariaDB."
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';

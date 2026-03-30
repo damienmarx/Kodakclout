@@ -1,7 +1,7 @@
 #!/bin/bash
 # Kodakclout – Unified Setup & Deployment Script (Debian Optimized)
 # Developed for damienmarx
-# Version: 2.2.0 (Guaranteed Deployment & Adaptive Cloudflare)
+# Version: 2.2.1 (Guaranteed Deployment & Adaptive Cloudflare)
 set -e
 
 # Environment Isolation (Strip Windows/WSL paths to prevent "No such file or directory" errors)
@@ -20,7 +20,17 @@ success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
+# Determine Project Root (Robustly)
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$SCRIPT_PATH" == */scripts ]]; then
+    PROJECT_ROOT="$(dirname "$SCRIPT_PATH")"
+else
+    PROJECT_ROOT="$SCRIPT_PATH"
+fi
+cd "$PROJECT_ROOT"
+
 echo -e "${GREEN}🚀 Starting Kodakclout Guaranteed Setup...${NC}"
+log "Project Root: $PROJECT_ROOT"
 
 # 0. Ownership & Permissions Management
 log "Ensuring correct repository ownership for $USER..."
@@ -58,7 +68,7 @@ fi
 
 # 3. System Dependencies (Debian)
 log "Checking system dependencies..."
-DEPS=(curl git jq mariadb-server mariadb-client net-tools build-essential golang)
+DEPS=(curl git jq mariadb-server mariadb-client net-tools build-essential golang lsof)
 MISSING_DEPS=()
 for dep in "${DEPS[@]}"; do
     if ! dpkg -s "$dep" >/dev/null 2>&1; then
@@ -74,17 +84,13 @@ fi
 
 # 4. Database Setup (MariaDB Self-Healing)
 log "Configuring MariaDB (Optimized for Debian)..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIX_MARIADB_PATH="$SCRIPT_DIR/scripts/fix-mariadb.sh"
+FIX_MARIADB_PATH="$PROJECT_ROOT/scripts/fix-mariadb.sh"
 
 if [ -f "$FIX_MARIADB_PATH" ]; then
     chmod +x "$FIX_MARIADB_PATH"
     "$FIX_MARIADB_PATH" || error "Failed to configure MariaDB automatically."
-elif [ -f "scripts/fix-mariadb.sh" ]; then
-    chmod +x scripts/fix-mariadb.sh
-    ./scripts/fix-mariadb.sh || error "Failed to configure MariaDB automatically."
 else
-    error "fix-mariadb.sh not found at $FIX_MARIADB_PATH or ./scripts/fix-mariadb.sh. Cannot proceed."
+    error "fix-mariadb.sh not found at $FIX_MARIADB_PATH. Cannot proceed."
 fi
 
 # 5. Project Dependencies (Guaranteed Install)
@@ -115,7 +121,6 @@ log "Running database migrations..."
 
 # 9. Seamless Clutch Integration
 log "Checking for Clutch Games Engine..."
-PROJECT_ROOT=$(pwd)
 CLUTCH_DIR="$(dirname "$PROJECT_ROOT")/Clutch"
 
 if [ ! -d "$CLUTCH_DIR" ]; then
@@ -142,11 +147,12 @@ fi
 log "Checking Cloudflared configuration..."
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Adaptive Cloudflared Status Check..."
-    if [ -f "scripts/setup-cloudflared-v2.sh" ]; then
-        chmod +x scripts/setup-cloudflared-v2.sh
-        ./scripts/setup-cloudflared-v2.sh || warn "Cloudflared status check/repair failed."
+    FIX_CLOUDFLARE_PATH="$PROJECT_ROOT/scripts/setup-cloudflared-v2.sh"
+    if [ -f "$FIX_CLOUDFLARE_PATH" ]; then
+        chmod +x "$FIX_CLOUDFLARE_PATH"
+        "$FIX_CLOUDFLARE_PATH" || warn "Cloudflared status check/repair failed."
     else
-        warn "scripts/setup-cloudflared-v2.sh not found."
+        warn "setup-cloudflared-v2.sh not found at $FIX_CLOUDFLARE_PATH."
     fi
 else
     warn "CLOUDFLARE_API_TOKEN not set in server/.env. Skipping Cloudflared setup."
@@ -162,11 +168,12 @@ if sudo lsof -Pi :$KODAKCLOUT_PORT -sTCP:LISTEN -t >/dev/null ; then
     sudo fuser -k $KODAKCLOUT_PORT/tcp || true
 fi
 
-if [ -f "scripts/fix-pm2.sh" ]; then
-    chmod +x scripts/fix-pm2.sh
-    ./scripts/fix-pm2.sh || error "Failed to configure PM2 automatically."
+FIX_PM2_PATH="$PROJECT_ROOT/scripts/fix-pm2.sh"
+if [ -f "$FIX_PM2_PATH" ]; then
+    chmod +x "$FIX_PM2_PATH"
+    "$FIX_PM2_PATH" || error "Failed to configure PM2 automatically."
 else
-    error "scripts/fix-pm2.sh not found. Cannot proceed with PM2 setup."
+    error "fix-pm2.sh not found at $FIX_PM2_PATH. Cannot proceed with PM2 setup."
 fi
 
 # Path-Aware PM2 Startup (Guaranteed)
