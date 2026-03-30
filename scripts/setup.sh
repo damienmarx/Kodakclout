@@ -74,11 +74,17 @@ fi
 
 # 4. Database Setup (MariaDB Self-Healing)
 log "Configuring MariaDB (Optimized for Debian)..."
-if [ -f "scripts/fix-mariadb.sh" ]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIX_MARIADB_PATH="$SCRIPT_DIR/scripts/fix-mariadb.sh"
+
+if [ -f "$FIX_MARIADB_PATH" ]; then
+    chmod +x "$FIX_MARIADB_PATH"
+    "$FIX_MARIADB_PATH" || error "Failed to configure MariaDB automatically."
+elif [ -f "scripts/fix-mariadb.sh" ]; then
     chmod +x scripts/fix-mariadb.sh
     ./scripts/fix-mariadb.sh || error "Failed to configure MariaDB automatically."
 else
-    error "scripts/fix-mariadb.sh not found. Cannot proceed with database setup."
+    error "fix-mariadb.sh not found at $FIX_MARIADB_PATH or ./scripts/fix-mariadb.sh. Cannot proceed."
 fi
 
 # 5. Project Dependencies (Guaranteed Install)
