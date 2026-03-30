@@ -1,6 +1,6 @@
 #!/bin/bash
-# Kodakclout – MariaDB Root Password Reset & Env Sync Script
-# Version: 1.0.0 (Guaranteed Access Recovery)
+# Kodakclout – MariaDB Nuclear Root Password Reset & Env Sync Script
+# Version: 1.1.0 (Nuclear Recovery Mode)
 set -e
 
 # Environment Isolation
@@ -33,47 +33,56 @@ DB_NAME="kodakclout"
 DB_USER="clout_user"
 DB_PASS="clout_pass"
 
-log "Starting MariaDB Root Password Reset (Guaranteed Recovery)..."
+log "Starting MariaDB NUCLEAR Root Password Reset..."
 
-# 1. Stop MariaDB Service
-log "Stopping MariaDB service..."
-if pidof systemd >/dev/null 2>&1; then
-    sudo systemctl stop mariadb || sudo systemctl kill -s SIGKILL mariadb || true
-else
-    sudo service mariadb stop || sudo pkill -9 mysqld || true
-fi
+# 1. Force-Kill All MariaDB/MySQL Processes (Nuclear Step)
+log "Force-killing all MariaDB/MySQL processes..."
+sudo systemctl stop mariadb 2>/dev/null || sudo service mariadb stop 2>/dev/null || true
+sudo fuser -k 3306/tcp 2>/dev/null || true
+sudo pkill -9 -f mysql || true
+sudo pkill -9 -f mariadb || true
+sudo pkill -9 -f mysqld || true
 
-# 2. Start MariaDB in Safe Mode (Skip Grant Tables)
+# 2. Clear Stuck Sockets and Locks
+log "Cleaning up stuck sockets and lock files..."
+sudo rm -f /var/run/mysqld/mysqld.sock 2>/dev/null || true
+sudo rm -f /var/run/mysqld/mysqld.pid 2>/dev/null || true
+sudo rm -f /var/lib/mysql/mysql.sock 2>/dev/null || true
+
+# 3. Start MariaDB in Safe Mode (Guaranteed Isolation)
 log "Starting MariaDB in Safe Mode (skipping permissions check)..."
-sudo mysqld_safe --skip-grant-tables --skip-networking &
-SAFE_PID=$!
-
-# Wait for MariaDB to start
-log "Waiting for MariaDB to initialize (10s)..."
-sleep 10
-
-# 3. Reset Root Password & Setup App User
-log "Resetting root password and setting up app user..."
-mariadb -u root <<EOF
+# Create a temporary init file for the reset
+INIT_FILE="/tmp/mariadb_init.sql"
+cat <<EOF > "$INIT_FILE"
 FLUSH PRIVILEGES;
--- Reset root password
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${NEW_ROOT_PASS}';
--- Ensure root doesn't use unix_socket
 ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('${NEW_ROOT_PASS}');
-
--- Setup App User (clout_user)
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 ALTER USER '${DB_USER}'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('${DB_PASS}');
-
 FLUSH PRIVILEGES;
 EOF
 
-# 4. Stop Safe Mode & Restart Normally
-log "Restarting MariaDB normally..."
-sudo pkill -9 mysqld || true
+# Run mysqld directly with the init file for a guaranteed reset
+log "Executing direct reset via mysqld init-file..."
+sudo mysqld --user=mysql --bootstrap --skip-grant-tables --skip-networking < "$INIT_FILE" || warn "Bootstrap reset failed, attempting safe-mode daemon..."
+
+# Fallback to Safe Mode Daemon if bootstrap failed
+if ! mariadb -u root -p"${NEW_ROOT_PASS}" -e "SELECT 1;" &>/dev/null; then
+    sudo mysqld_safe --skip-grant-tables --skip-networking &
+    log "Waiting for Safe Mode daemon (15s)..."
+    sleep 15
+    mariadb -u root <<EOF || warn "Safe mode reset failed."
+    $(cat "$INIT_FILE")
+EOF
+fi
+
+# 4. Cleanup and Normal Restart
+log "Cleaning up and restarting MariaDB normally..."
+sudo pkill -9 -f mysqld || true
+rm -f "$INIT_FILE"
 sleep 5
 
 if pidof systemd >/dev/null 2>&1; then
@@ -85,11 +94,10 @@ fi
 # 5. Update server/.env
 log "Updating server/.env with new database credentials..."
 if [ -f "server/.env" ]; then
-    # Replace existing DATABASE_URL line
     sed -i "s|DATABASE_URL=.*|DATABASE_URL=\"mysql://${DB_USER}:${DB_PASS}@localhost:3306/${DB_NAME}\"|" server/.env
-    success "server/.env updated with guaranteed credentials."
+    success "server/.env updated."
 else
-    warn "server/.env not found. Skipping env update."
+    warn "server/.env not found."
 fi
 
 # 6. Final Verification
@@ -101,7 +109,7 @@ if mariadb -u "${DB_USER}" -p"${DB_PASS}" -e "USE ${DB_NAME}; SELECT 1;" &> /dev
     echo -e "${YELLOW}App User (clout_user) Password:${NC} ${DB_PASS}"
     echo -e "${GREEN}========================================${NC}"
 else
-    error "Failed to connect even after reset. Check /var/log/mysql/error.log"
+    error "Nuclear reset failed. Your MariaDB installation may be corrupted. Check /var/log/mysql/error.log"
 fi
 
-success "MariaDB Reset & Env Sync Complete!"
+success "MariaDB Nuclear Reset Complete!"
