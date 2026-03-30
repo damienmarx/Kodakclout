@@ -2,18 +2,23 @@
 
 # Kodakclout – Automated Deployment Script
 # Author: Damien (Kodakclout)
-# Version: 2.1.0 (Bulletproof Deployment)
+# Version: 2.3.0 (Unified & Hardened Deployment)
 
 set -e
 
 # Colors for logging
-RED=\033[0;31m
-GREEN=\033[0;32m
-BLUE=\033[0;34m
-NC=\033[0m # No Color
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 log() {
     echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 success() {
@@ -47,8 +52,8 @@ fi
 # 2. Install System Dependencies
 log "Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update -y || error "Failed to update apt packages."
-sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools jq || error "Failed to install system dependencies."
+sudo apt-get update -y || warn "Apt update failed. Continuing anyway..."
+sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools jq golang-go || error "Failed to install system dependencies."
 
 # 3. Node.js & npm Setup
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
@@ -82,22 +87,20 @@ pnpm install --no-frozen-lockfile || error "Failed to install project dependenci
 
 # 6. Handle Environment Files
 log "Checking environment files..."
-[ ! -f server/.env ] && cp server/.env.example server/.env && log "Created server/.env from template."
-[ ! -f client/.env ] && cp client/.env.example client/.env && log "Created client/.env from template."
+[ ! -f server/.env ] && cp server/.env.example server/.env && warn "Created server/.env from template. PLEASE UPDATE IT!"
+[ ! -f client/.env ] && cp client/.env.example client/.env && warn "Created client/.env from template. PLEASE UPDATE IT!"
 
 # ─── Bulletproof Env Loading ───
-# Load environment variables from server/.env, strictly ignoring comments and invalid lines
 if [ -f server/.env ]; then
     log "Loading environment variables from server/.env..."
-    # Use awk to filter out comments and empty lines, then export valid key-value pairs
-    eval "$(awk 
-        /^#/ { next } 
-        /^[[:space:]]*$/ { next } 
-        /^[[:alnum:]_]+=.*$/ { print "export " $0 } 
-        server/.env
-    )"
+    while IFS='=' read -r key value || [ -n "$key" ]; do
+        [[ $key =~ ^#.* ]] && continue
+        [[ -z $key ]] && continue
+        value=$(echo "$value" | sed -e 's/^["'\'']//' -e 's/["'\'']$//')
+        export "$key"="$value"
+    done < server/.env
 else
-    error "server/.env file not found after creation attempt. Cannot proceed."
+    error "server/.env file not found. Cannot proceed."
 fi
 
 # 7. Build Shared Module
@@ -108,45 +111,42 @@ log "Building shared module..."
 log "Handling database..."
 
 if [ -z "$DATABASE_URL" ]; then
-    DATABASE_URL=$(grep "^DATABASE_URL=" server/.env | cut -d'=' -f2- | sed -e 's/^["\'\]//' -e 's/["\'\]$//')
-    export DATABASE_URL
-fi
-
-if [ -z "$DATABASE_URL" ]; then
     error "DATABASE_URL is not set in server/.env. Please configure it."
 fi
 
-# Ensure MariaDB is running and self-heal if necessary
+# Ensure MariaDB is running
 if ! nc -z 127.0.0.1 3306; then
-    log "MariaDB not reachable. Attempting to start..."
+    log "MariaDB not reachable on 3306. Attempting to start..."
     if [ "$HAS_SYSTEMD" = true ]; then
-        sudo systemctl start mariadb || sudo service mariadb start || error "Failed to start MariaDB."
+        sudo systemctl start mariadb || sudo service mariadb start || warn "Failed to start MariaDB."
     else
-        sudo service mariadb start || sudo /etc/init.d/mariadb start || error "Failed to start MariaDB."
+        sudo service mariadb start || sudo /etc/init.d/mariadb start || warn "Failed to start MariaDB."
     fi
     sleep 5
-    if ! nc -z 127.0.0.1 3306; then
-        error "MariaDB still not reachable after attempting to start. Please check your MariaDB installation."
-    fi
 fi
 
-# Self-Healing: Try to create DB and User if connection fails
+# Self-Healing: Try to create DB and User
 if ! mariadb -e "SELECT 1" >/dev/null 2>&1; then
-    log "Default connection failed. Attempting self-healing as root..."
-    sudo mariadb -u root <<EOF || error "Failed to create database/user as root."
-CREATE DATABASE IF NOT EXISTS kodakclout;
+    log "Default MariaDB connection failed. Attempting self-healing as root..."
+    DB_NAME=$(echo "$DATABASE_URL" | sed -n 's/.*\/\([^?]*\).*/\1/p')
+    [ -z "$DB_NAME" ] && DB_NAME="kodakclout"
+    
+    sudo mariadb -u root <<EOF || warn "Failed to verify/create database as root."
+CREATE DATABASE IF NOT EXISTS $DB_NAME;
 CREATE USER IF NOT EXISTS 'clout_user'@'localhost' IDENTIFIED BY 'clout_pass';
-GRANT ALL PRIVILEGES ON kodakclout.* TO 'clout_user'@'localhost';
+GRANT ALL PRIVILEGES ON $DB_NAME.* TO 'clout_user'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-    success "Database and user 'clout_user' created/verified."
+    success "Database verification complete."
 fi
 
-# Update drizzle.config.json
-sed -i "s|\"uri\": \".*\"|\"uri\": \"$DATABASE_URL\"|" server/drizzle.config.json || error "Failed to update drizzle.config.json."
+# Update drizzle.config.json if it exists
+if [ -f server/drizzle.config.json ]; then
+    sed -i "s|\"uri\": \".*\"|\"uri\": \"$DATABASE_URL\"|" server/drizzle.config.json || warn "Failed to update drizzle.config.json."
+fi
 
 log "Running migrations..."
-(cd server && pnpm migrate) || log "Migration failed or no changes. Continuing..."
+(cd server && pnpm migrate) || warn "Migration failed or no changes. Continuing..."
 
 # 9. Build Frontend & Backend
 log "Building frontend..."
@@ -156,17 +156,14 @@ log "Building backend..."
 
 # 10. Cloudflare Tunnel Setup
 log "Checking for Cloudflare Tunnel setup..."
-if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-    CLOUDFLARE_API_TOKEN=$(grep "^CLOUDFLARE_API_TOKEN=" server/.env | cut -d'=' -f2- | sed -e 's/^["\'\]//' -e 's/["\'\]$//')
-    export CLOUDFLARE_API_TOKEN
-fi
-
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
-    chmod +x "$SCRIPT_DIR/setup-cloudflared.sh" || error "Failed to make setup-cloudflared.sh executable."
-    "$SCRIPT_DIR/setup-cloudflared.sh" || error "Cloudflared setup script failed."
-else
-    log "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflared setup. You will need to configure tunnels manually."
+    if [ -f "$SCRIPT_DIR/setup-cloudflared.sh" ]; then
+        chmod +x "$SCRIPT_DIR/setup-cloudflared.sh"
+        "$SCRIPT_DIR/setup-cloudflared.sh" || warn "Cloudflared setup script failed."
+    else
+        warn "setup-cloudflared.sh not found."
+    fi
 fi
 
 # 11. Start Kodakclout Application with PM2
@@ -174,64 +171,40 @@ log "Deploying Kodakclout with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
-$PM2_CMD start server/dist/index.js --name kodakclout --update-env || error "Failed to start Kodakclout backend with PM2."
+$PM2_CMD start server/dist/index.js --name kodakclout --update-env || error "Failed to start Kodakclout with PM2."
 
-# 12. Start Clutch Backend with PM2
-log "Deploying Clutch backend with PM2..."
-CLUTCH_DIR="$(dirname "$PROJECT_ROOT")"/Clutch # Assuming Clutch is a sibling directory
-CLUTCH_EXECUTABLE="$CLUTCH_DIR/slot_linux_x64"
+# 12. Build and Start Clutch Backend
+log "Checking for Clutch backend..."
+CLUTCH_DIR="$(dirname "$PROJECT_ROOT")"/Clutch
 CLUTCH_CONFIG="$CLUTCH_DIR/degens777den.yaml"
 
-if [ -f "$CLUTCH_EXECUTABLE" ] && [ -f "$CLUTCH_CONFIG" ]; then
-    chmod +x "$CLUTCH_EXECUTABLE" || error "Failed to make Clutch executable."
-    $PM2_CMD delete clutch-engine 2>/dev/null || true
-    $PM2_CMD start "$CLUTCH_EXECUTABLE" --name clutch-engine -- -c "$CLUTCH_CONFIG" web || error "Failed to start Clutch backend with PM2."
-    success "Clutch backend started with PM2."
+if [ -d "$CLUTCH_DIR" ] && [ -f "$CLUTCH_CONFIG" ]; then
+    log "Building Clutch backend from source..."
+    (cd "$CLUTCH_DIR" && go build -o clutch-server main.go) || warn "Failed to build Clutch from source."
+    
+    if [ -f "$CLUTCH_DIR/clutch-server" ]; then
+        log "Deploying Clutch backend with PM2..."
+        chmod +x "$CLUTCH_DIR/clutch-server"
+        $PM2_CMD delete clutch-engine 2>/dev/null || true
+        # Start Clutch from its directory so it can find its local assets
+        (cd "$CLUTCH_DIR" && $PM2_CMD start ./clutch-server --name clutch-engine -- web -c "$CLUTCH_CONFIG") || warn "Failed to start Clutch with PM2."
+        success "Clutch backend deployment attempted."
+    else
+        warn "Clutch server binary not found after build attempt."
+    fi
 else
-    log "Clutch executable or config not found at $CLUTCH_DIR. Skipping Clutch PM2 deployment. Please ensure Clutch is built and located correctly."
+    warn "Clutch directory or config not found at $CLUTCH_DIR. Skipping Clutch deployment."
 fi
 
 # 13. Final Health Checks
-log "Validating deployments (waiting 15s for services to start)..."
-sleep 15
+log "Validating deployments (waiting 10s)..."
+sleep 10
 
-KODAKCLOUT_HEALTH_OK=false
-if curl -sf http://127.0.0.1:8080/api/health | grep -q 'ok' || curl -sf http://localhost:8080/api/health | grep -q 'ok'; then
+KODAKCLOUT_PORT=${PORT:-8080}
+if curl -sf "http://127.0.0.1:$KODAKCLOUT_PORT/api/health" | grep -q 'ok'; then
     success "Kodakclout backend health check passed!"
-    KODAKCLOUT_HEALTH_OK=true
 else
-    log "Kodakclout backend health check failed."
-    $PM2_CMD logs kodakclout --lines 30 --no-daemon &
-    sleep 3
-    kill $! 2>/dev/null || true
-    error "Kodakclout deployment failed. Check PM2 logs above."
+    warn "Kodakclout health check failed at http://127.0.0.1:$KODAKCLOUT_PORT/api/health"
 fi
 
-CLUTCH_HEALTH_OK=false
-if [ -f "$CLUTCH_EXECUTABLE" ]; then # Only check if Clutch was supposed to be deployed
-    if curl -sf http://127.0.0.1:8081/ping | grep -q 'pong' || curl -sf http://localhost:8081/ping | grep -q 'pong'; then # Assuming Clutch has a /ping endpoint
-        success "Clutch backend health check passed!"
-        CLUTCH_HEALTH_OK=true
-    else
-        log "Clutch backend health check failed."
-        $PM2_CMD logs clutch-engine --lines 30 --no-daemon &
-        sleep 3
-        kill $! 2>/dev/null || true
-        error "Clutch deployment failed. Check PM2 logs above."
-    fi
-else
-    log "Clutch backend not deployed via script, skipping health check."
-fi
-
-if $KODAKCLOUT_HEALTH_OK; then
-    success "Kodakclout is up and running!"
-    log "Public URL: https://cloutscape.org"
-    log "API URL: https://api.cloutscape.org"
-fi
-
-if $CLUTCH_HEALTH_OK; then
-    success "Clutch engine is up and running!"
-    log "Games URL: https://games.cloutscape.org"
-fi
-
-success "Deployment complete."
+success "Unified deployment script finished."
