@@ -3,6 +3,10 @@
 # Version: 1.0.1
 set -e
 
+# Environment Isolation (Strip Windows/WSL paths)
+export PATH=$(echo $PATH | tr ':' '\n' | grep -v "/mnt/c/" | tr '\n' ':' | sed 's/:$//')
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:$PATH"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
