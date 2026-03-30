@@ -1,8 +1,8 @@
 node_modules/
 dist/
-.env
-.env.local
-.env.production
+# .env files are now tracked as requested by damienmarx
+# .env.local
+# .env.production
 *.log
 .DS_Store
 .turbo/
