@@ -53,9 +53,27 @@ fi
 log "Installing system dependencies..."
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -y || warn "Apt update failed. Continuing anyway..."
-sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools jq golang-go || error "Failed to install system dependencies."
+sudo apt-get install -y curl git mariadb-client build-essential psmisc net-tools jq || error "Failed to install system dependencies."
 
-# 3. Node.js & npm Setup
+# 3. Go 1.25+ Setup (Required for Clutch)
+log "Checking Go version..."
+GO_VERSION_REQUIRED="1.25.0"
+CURRENT_GO_VERSION=$(go version 2>/dev/null | awk '{print $3}' | sed 's/go//')
+
+if [ -z "$CURRENT_GO_VERSION" ] || [ "$(printf '%s\n' "$GO_VERSION_REQUIRED" "$CURRENT_GO_VERSION" | sort -V | head -n1)" != "$GO_VERSION_REQUIRED" ]; then
+    log "Go $GO_VERSION_REQUIRED+ not found (Current: ${CURRENT_GO_VERSION:-None}). Installing Go $GO_VERSION_REQUIRED..."
+    GO_TAR="go${GO_VERSION_REQUIRED}.linux-amd64.tar.gz"
+    curl -LO "https://go.dev/dl/$GO_TAR" || error "Failed to download Go $GO_VERSION_REQUIRED."
+    sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "$GO_TAR" || error "Failed to install Go."
+    rm "$GO_TAR"
+    export PATH="/usr/local/go/bin:$PATH"
+    echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.bashrc"
+    success "Go $GO_VERSION_REQUIRED installed successfully."
+else
+    success "Go version $CURRENT_GO_VERSION is sufficient."
+fi
+
+# 4. Node.js & npm Setup
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 if ! command -v node &> /dev/null; then
     log "Node.js not found. Installing Node.js 20..."
@@ -64,7 +82,7 @@ if ! command -v node &> /dev/null; then
 fi
 NPM_CMD=$(command -v npm || which npm || echo "")
 
-# 4. pnpm & pm2 Setup
+# 5. pnpm & pm2 Setup
 if ! command -v pnpm &> /dev/null; then
     log "Installing pnpm..."
     curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(command -v bash)" bash - || true
@@ -81,11 +99,11 @@ if ! command -v pm2 &> /dev/null; then
     export PATH="$HOME/.local/share/pnpm:$PATH"
 fi
 
-# 5. Setup Project
+# 6. Setup Project
 log "Setting up project dependencies..."
 pnpm install --no-frozen-lockfile || error "Failed to install project dependencies."
 
-# 6. Handle Environment Files
+# 7. Handle Environment Files
 log "Checking environment files..."
 [ ! -f server/.env ] && cp server/.env.example server/.env && warn "Created server/.env from template. PLEASE UPDATE IT!"
 [ ! -f client/.env ] && cp client/.env.example client/.env && warn "Created client/.env from template. PLEASE UPDATE IT!"
@@ -103,11 +121,11 @@ else
     error "server/.env file not found. Cannot proceed."
 fi
 
-# 7. Build Shared Module
+# 8. Build Shared Module
 log "Building shared module..."
 (cd shared && pnpm build) || error "Failed to build shared module."
 
-# 8. Database Initialization & Migrations
+# 9. Database Initialization & Migrations
 log "Handling database..."
 
 if [ -z "$DATABASE_URL" ]; then
@@ -148,13 +166,13 @@ fi
 log "Running migrations..."
 (cd server && pnpm migrate) || warn "Migration failed or no changes. Continuing..."
 
-# 9. Build Frontend & Backend
+# 10. Build Frontend & Backend
 log "Building frontend..."
 (cd client && pnpm build) || error "Failed to build frontend."
 log "Building backend..."
 (cd server && pnpm build) || error "Failed to build backend."
 
-# 10. Cloudflare Tunnel Setup
+# 11. Cloudflare Tunnel Setup
 log "Checking for Cloudflare Tunnel setup..."
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     log "CLOUDFLARE_API_TOKEN found. Running Cloudflared setup..."
@@ -166,14 +184,14 @@ if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
     fi
 fi
 
-# 11. Start Kodakclout Application with PM2
+# 12. Start Kodakclout Application with PM2
 log "Deploying Kodakclout with PM2..."
 export NODE_ENV=production
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
 $PM2_CMD start server/dist/index.js --name kodakclout --update-env || error "Failed to start Kodakclout with PM2."
 
-# 12. Build and Start Clutch Backend
+# 13. Build and Start Clutch Backend
 log "Checking for Clutch backend..."
 CLUTCH_DIR="$(dirname "$PROJECT_ROOT")"/Clutch
 CLUTCH_CONFIG="$CLUTCH_DIR/degens777den.yaml"
@@ -196,7 +214,7 @@ else
     warn "Clutch directory or config not found at $CLUTCH_DIR. Skipping Clutch deployment."
 fi
 
-# 13. Final Health Checks
+# 14. Final Health Checks
 log "Validating deployments (waiting 10s)..."
 sleep 10
 
