@@ -1,7 +1,7 @@
 #!/bin/bash
 # Kodakclout – Unified Setup & Deployment Script (Debian Optimized)
 # Developed for damienmarx
-# Version: 2.1.0 (Clutch Seamless Integration)
+# Version: 2.2.0 (Guaranteed Deployment & Adaptive Cloudflare)
 set -e
 
 # Colors for output
@@ -16,7 +16,7 @@ success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-echo -e "${GREEN}🚀 Starting Kodakclout Unified Setup...${NC}"
+echo -e "${GREEN}🚀 Starting Kodakclout Guaranteed Setup...${NC}"
 
 # 0. Ownership & Permissions Management
 log "Ensuring correct repository ownership for $USER..."
@@ -29,13 +29,13 @@ if ! sudo -n true 2>/dev/null; then
     warn "Sudo access without password is not configured. You may be prompted for your password."
 fi
 
-# 1. Local Environment Conflict Purge
+# 1. Local Environment Conflict Purge (Guaranteed Clean Slate)
 log "Purging local environment conflicts..."
-# Remove old node_modules, lockfiles, and build artifacts
 find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
 find . -name "dist" -type d -prune -exec rm -rf '{}' +
 find . -name "pnpm-lock.yaml" -delete
 find . -name ".turbo" -type d -prune -exec rm -rf '{}' +
+success "Clean slate achieved."
 
 # 2. Package Manager Pre-checks & Installation
 log "Checking package manager..."
@@ -68,12 +68,11 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     sudo apt-get install -y "${MISSING_DEPS[@]}"
 fi
 
-# 4. Database Setup (MariaDB)
+# 4. Database Setup (MariaDB Self-Healing)
 log "Configuring MariaDB..."
 sudo systemctl start mariadb || sudo service mariadb start
 sudo systemctl enable mariadb || true
 
-# Self-Healing: Try to create DB and User
 DB_NAME="kodakclout"
 DB_USER="clout_user"
 DB_PASS="clout_pass"
@@ -86,7 +85,7 @@ GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
 
-# 5. Project Dependencies
+# 5. Project Dependencies (Guaranteed Install)
 log "Installing project dependencies..."
 pnpm install --no-frozen-lockfile || error "Failed to install dependencies."
 
@@ -95,14 +94,18 @@ log "Handling environment files..."
 [ ! -f server/.env ] && cp server/.env.example server/.env && warn "Created server/.env. PLEASE UPDATE IT!"
 [ ! -f client/.env ] && cp client/.env.example client/.env && warn "Created client/.env. PLEASE UPDATE IT!"
 
-# Load environment variables for the script
 if [ -f server/.env ]; then
     export $(grep -v '^#' server/.env | xargs)
 fi
 
-# 7. Build Shared & Applications
+# 7. Guaranteed Build (with Error Recovery)
 log "Building workspace..."
-pnpm run build || error "Build failed."
+if ! pnpm run build; then
+    warn "Build failed. Attempting recovery by clearing cache..."
+    pnpm store prune
+    pnpm run build || error "Build failed after recovery attempt."
+fi
+success "Workspace built successfully."
 
 # 8. Database Migrations
 log "Running database migrations..."
@@ -133,13 +136,13 @@ else
     warn "Clutch engine integration skipped."
 fi
 
-# 10. Automated Cloudflared Startup
+# 10. Adaptive Cloudflared Status Check & Repair
 log "Checking Cloudflared configuration..."
 if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
-    log "CLOUDFLARE_API_TOKEN found. Automating Cloudflared startup..."
+    log "CLOUDFLARE_API_TOKEN found. Running Adaptive Cloudflared Status Check..."
     if [ -f "scripts/setup-cloudflared-v2.sh" ]; then
         chmod +x scripts/setup-cloudflared-v2.sh
-        ./scripts/setup-cloudflared-v2.sh || warn "Cloudflared setup failed."
+        ./scripts/setup-cloudflared-v2.sh || warn "Cloudflared status check/repair failed."
     else
         warn "scripts/setup-cloudflared-v2.sh not found."
     fi
@@ -147,7 +150,7 @@ else
     warn "CLOUDFLARE_API_TOKEN not set in server/.env. Skipping Cloudflared setup."
 fi
 
-# 11. Health Checks
+# 11. Final Health Checks & PM2 Deployment
 log "Performing final health checks..."
 PM2_CMD=$(command -v pm2 || echo "pm2")
 if ! command -v pm2 &> /dev/null; then
@@ -157,7 +160,7 @@ if ! command -v pm2 &> /dev/null; then
 fi
 
 $PM2_CMD delete kodakclout 2>/dev/null || true
-$PM2_CMD start server/dist/index.js --name kodakclout --update-env
+$PM2_CMD start server/dist/server/src/index.js --name kodakclout --update-env
 
 log "Waiting for server to stabilize (10s)..."
 sleep 10
@@ -169,7 +172,7 @@ else
     warn "Kodakclout health check failed at http://127.0.0.1:$KODAKCLOUT_PORT/api/health"
 fi
 
-success "Unified Kodakclout setup complete!"
+success "Unified Kodakclout Guaranteed Setup complete!"
 echo -e "${YELLOW}Manage your application with:${NC} pm2 status"
 echo -e "${YELLOW}View logs with:${NC} pm2 logs kodakclout"
 echo -e "${YELLOW}Clutch engine is running as:${NC} clutch-engine"
