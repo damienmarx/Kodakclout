@@ -18,7 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@shared/*": ["../shared/src/*"],
+      
       "@server/*": ["../server/src/*"],
       "@kodakclout/shared": ["../shared/src/index.ts"],
       "@kodakclout/shared/*": ["../shared/src/*"]
