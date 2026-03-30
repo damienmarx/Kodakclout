@@ -144,6 +144,14 @@ fi
 
 # 11. Final Health Checks & PM2 Deployment (Guaranteed)
 log "Performing final health checks and PM2 deployment..."
+
+# Port Conflict Check (Guaranteed Port 8080)
+KODAKCLOUT_PORT=${PORT:-8080}
+if sudo lsof -Pi :$KODAKCLOUT_PORT -sTCP:LISTEN -t >/dev/null ; then
+    warn "Port $KODAKCLOUT_PORT is already in use. Attempting to clear..."
+    sudo fuser -k $KODAKCLOUT_PORT/tcp || true
+fi
+
 if [ -f "scripts/fix-pm2.sh" ]; then
     chmod +x scripts/fix-pm2.sh
     ./scripts/fix-pm2.sh || error "Failed to configure PM2 automatically."
@@ -153,6 +161,12 @@ fi
 
 # Path-Aware PM2 Startup (Guaranteed)
 log "Locating server entry point..."
+# Re-run build if dist is missing to ensure index.js exists
+if [ ! -d "server/dist" ]; then
+    warn "server/dist missing. Forcing a re-build..."
+    (cd server && pnpm run build)
+fi
+
 POSSIBLE_PATHS=(
     "server/dist/server/src/index.js"
     "server/dist/src/index.js"
@@ -168,13 +182,14 @@ for p in "${POSSIBLE_PATHS[@]}"; do
 done
 
 if [ -z "$SERVER_ENTRY" ]; then
-    error "Could not find server entry point (index.js) in server/dist. Build may have failed."
+    error "CRITICAL: Could not find server entry point (index.js) in server/dist even after re-build."
 fi
 
 log "Starting Kodakclout with entry point: $SERVER_ENTRY"
 PM2_CMD=$(command -v pm2 || echo "pm2")
 $PM2_CMD delete kodakclout 2>/dev/null || true
-$PM2_CMD start "$SERVER_ENTRY" --name kodakclout --update-env --watch --ignore-watch="node_modules"
+# Run with --no-daemon to catch immediate crashes in logs
+$PM2_CMD start "$SERVER_ENTRY" --name kodakclout --update-env --watch --ignore-watch="node_modules" --max-restarts=10 --restart-delay=1000
 
 log "Waiting for server to stabilize (10s)..."
 sleep 10
