@@ -151,8 +151,30 @@ else
     error "scripts/fix-pm2.sh not found. Cannot proceed with PM2 setup."
 fi
 
+# Path-Aware PM2 Startup (Guaranteed)
+log "Locating server entry point..."
+POSSIBLE_PATHS=(
+    "server/dist/server/src/index.js"
+    "server/dist/src/index.js"
+    "server/dist/index.js"
+)
+
+SERVER_ENTRY=""
+for p in "${POSSIBLE_PATHS[@]}"; do
+    if [ -f "$p" ]; then
+        SERVER_ENTRY="$p"
+        break
+    fi
+done
+
+if [ -z "$SERVER_ENTRY" ]; then
+    error "Could not find server entry point (index.js) in server/dist. Build may have failed."
+fi
+
+log "Starting Kodakclout with entry point: $SERVER_ENTRY"
 PM2_CMD=$(command -v pm2 || echo "pm2")
-$PM2_CMD start server/dist/server/src/index.js --name kodakclout --update-env
+$PM2_CMD delete kodakclout 2>/dev/null || true
+$PM2_CMD start "$SERVER_ENTRY" --name kodakclout --update-env --watch --ignore-watch="node_modules"
 
 log "Waiting for server to stabilize (10s)..."
 sleep 10
