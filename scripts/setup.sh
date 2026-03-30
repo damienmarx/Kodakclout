@@ -69,21 +69,13 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
 fi
 
 # 4. Database Setup (MariaDB Self-Healing)
-log "Configuring MariaDB..."
-sudo systemctl start mariadb || sudo service mariadb start
-sudo systemctl enable mariadb || true
-
-DB_NAME="kodakclout"
-DB_USER="clout_user"
-DB_PASS="clout_pass"
-
-log "Verifying database and user..."
-sudo mariadb -u root <<EOF || warn "Failed to verify/create database as root."
-CREATE DATABASE IF NOT EXISTS $DB_NAME;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
-GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
-FLUSH PRIVILEGES;
-EOF
+log "Configuring MariaDB (Optimized for Debian)..."
+if [ -f "scripts/fix-mariadb.sh" ]; then
+    chmod +x scripts/fix-mariadb.sh
+    ./scripts/fix-mariadb.sh || error "Failed to configure MariaDB automatically."
+else
+    error "scripts/fix-mariadb.sh not found. Cannot proceed with database setup."
+fi
 
 # 5. Project Dependencies (Guaranteed Install)
 log "Installing project dependencies..."
