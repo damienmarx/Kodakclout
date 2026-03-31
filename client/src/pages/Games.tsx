@@ -39,14 +39,21 @@ export default function Games() {
               <Filter className="w-5 h-5" />
             </button>
             {user ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-zinc-400 hidden sm:inline">Hi, <span className="text-white font-bold">{user.name}</span></span>
-                <button 
-                  onClick={logout}
-                  className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors"
-                >
-                  Sign Out
-                </button>
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Balance</span>
+                  <span className="text-sm font-black text-indigo-400">${(user.balance || 0).toLocaleString()}</span>
+                </div>
+                <div className="h-8 w-px bg-zinc-800" />
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-zinc-400 hidden sm:inline">Hi, <span className="text-white font-bold">{user.name}</span></span>
+                  <button 
+                    onClick={logout}
+                    className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </div>
               </div>
             ) : (
               <Link to="/login" className="text-sm font-semibold hover:text-white text-zinc-400 transition-colors">Sign In</Link>
