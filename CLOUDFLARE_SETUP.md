@@ -24,7 +24,7 @@ The Kodakclout deployment includes automatic Cloudflare Tunnel integration with:
 ### 1. Deploy with Cloudflare Tunnel
 
 ```bash
-sudo bash scripts/deploy-universal-v2.sh --with-cloudflare --domain yourdomain.com
+sudo bash scripts/deploy-universal-v2.sh --with-cloudflare --domain cloutscape.org
 ```
 
 This will:
@@ -60,9 +60,9 @@ logfile: /var/log/kodakclout/cloudflared-tunnel.log
 loglevel: info
 
 ingress:
-  - hostname: yourdomain.com
+  - hostname: cloutscape.org
     service: http://localhost:8080
-  - hostname: www.yourdomain.com
+  - hostname: www.cloutscape.org
     service: http://localhost:8080
   - service: http_status:404
 ```
@@ -268,15 +268,15 @@ Edit `/etc/cloudflared/config.yml`:
 ```yaml
 ingress:
   # API subdomain
-  - hostname: api.yourdomain.com
+  - hostname: api.cloutscape.org
     service: http://localhost:8080/api
   
   # Main domain
-  - hostname: yourdomain.com
+  - hostname: cloutscape.org
     service: http://localhost:8080
   
   # Wildcard
-  - hostname: "*.yourdomain.com"
+  - hostname: "*.cloutscape.org"
     service: http://localhost:8080
   
   # Catch-all
@@ -384,7 +384,7 @@ Create a wrapper script for email notifications:
 ```bash
 #!/bin/bash
 if ! bash scripts/cloudflared-health-check.sh check; then
-    echo "Cloudflared health check failed" | mail -s "Alert: Kodakclout Tunnel Down" admin@yourdomain.com
+    echo "Cloudflared health check failed" | mail -s "Alert: Kodakclout Tunnel Down" admin@cloutscape.org
 fi
 ```
 

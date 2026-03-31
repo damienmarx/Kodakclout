@@ -10,7 +10,7 @@
 # - Adaptive environment detection
 # - Automatic health monitoring
 #
-# Usage: sudo bash deploy-universal-v2.sh [--with-cloudflare] [--domain yourdomain.com]
+# Usage: sudo bash deploy-universal-v2.sh [--with-cloudflare] [--domain cloutscape.org]
 ################################################################################
 
 set -euo pipefail

@@ -16,26 +16,26 @@ You should have at least two public hostnames configured:
 
 | Public Hostname | Service | Path |
 |-----------------|---------|------|
-| `yourdomain.com` | `http://localhost:8080` | (empty) |
-| `www.yourdomain.com` | `http://localhost:8080` | (empty) |
-| `api.yourdomain.com` | `http://localhost:8080` | `/api` (optional) |
+| `cloutscape.org` | `http://localhost:8080` | (empty) |
+| `www.cloutscape.org` | `http://localhost:8080` | (empty) |
+| `api.cloutscape.org` | `http://localhost:8080` | `/api` (optional) |
 
 ## 2. DNS Settings
 
-Navigate to **Websites** > **[yourdomain.com]** > **DNS**.
+Navigate to **Websites** > **[cloutscape.org]** > **DNS**.
 
 ### Required Records
 Cloudflare Tunnels automatically manage these CNAME records. Ensure they are **Proxied** (Orange Cloud):
 
 | Type | Name | Content | Proxy Status |
 |------|------|---------|--------------|
-| CNAME | `yourdomain.com` | `[tunnel-id].cfargotunnel.com` | Proxied |
-| CNAME | `www` | `yourdomain.com` | Proxied |
-| CNAME | `api` | `yourdomain.com` | Proxied |
+| CNAME | `cloutscape.org` | `[tunnel-id].cfargotunnel.com` | Proxied |
+| CNAME | `www` | `cloutscape.org` | Proxied |
+| CNAME | `api` | `cloutscape.org` | Proxied |
 
 ## 3. SSL/TLS Settings
 
-Navigate to **Websites** > **[yourdomain.com]** > **SSL/TLS**.
+Navigate to **Websites** > **[cloutscape.org]** > **SSL/TLS**.
 
 - **Encryption Mode**: Set to **Full** or **Full (Strict)**.
   - *Note*: Since the tunnel handles the encryption between Cloudflare and your server, "Full" is usually sufficient.
@@ -44,7 +44,7 @@ Navigate to **Websites** > **[yourdomain.com]** > **SSL/TLS**.
 
 ## 4. Security & WAF (Web Application Firewall)
 
-Navigate to **Websites** > **[yourdomain.com]** > **Security** > **WAF**.
+Navigate to **Websites** > **[cloutscape.org]** > **Security** > **WAF**.
 
 ### Recommended Rules
 1. **Block Known Bots**: Enable the "Bot Fight Mode".
@@ -55,7 +55,7 @@ Navigate to **Websites** > **[yourdomain.com]** > **Security** > **WAF**.
 
 ## 5. Caching
 
-Navigate to **Websites** > **[yourdomain.com]** > **Caching** > **Configuration**.
+Navigate to **Websites** > **[cloutscape.org]** > **Caching** > **Configuration**.
 
 - **Caching Level**: **Standard**.
 - **Browser Cache TTL**: **4 hours** (or as preferred).
@@ -63,7 +63,7 @@ Navigate to **Websites** > **[yourdomain.com]** > **Caching** > **Configuration*
 
 ## 6. Network Settings
 
-Navigate to **Websites** > **[yourdomain.com]** > **Network**.
+Navigate to **Websites** > **[cloutscape.org]** > **Network**.
 
 - **WebSockets**: **On** (Required for real-time game features).
 - **gRPC**: **On** (Optional, but good for performance).
@@ -74,7 +74,7 @@ Navigate to **Websites** > **[yourdomain.com]** > **Network**.
 Navigate to **Zero Trust** > **Access** > **Applications**.
 
 - **Admin Panel Protection**: 
-  - Create an application for `yourdomain.com/admin` (if implemented).
+  - Create an application for `cloutscape.org/admin` (if implemented).
   - Add a policy to allow only your email address via OTP or Google Workspace.
 
 ## 8. Workers & Pages (Optional)

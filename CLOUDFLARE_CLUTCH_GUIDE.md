@@ -8,12 +8,12 @@ In your **Cloudflare Zero Trust Dashboard** (Networks > Tunnels > `kodakclout-tu
 
 | Public Hostname | Service | Path | Description |
 | :--- | :--- | :--- | :--- |
-| `yourdomain.com` | `http://localhost:8080` | (Leave Empty) | **Main Frontend**: Serves the React application. |
-| `www.yourdomain.com` | `http://localhost:8080` | (Leave Empty) | **WWW Alias**: Redirects or serves the main site. |
-| `api.yourdomain.com` | `http://localhost:8080` | `/api` | **Backend API**: Routes all tRPC and OAuth requests. |
+| `cloutscape.org` | `http://localhost:8080` | (Leave Empty) | **Main Frontend**: Serves the React application. |
+| `www.cloutscape.org` | `http://localhost:8080` | (Leave Empty) | **WWW Alias**: Redirects or serves the main site. |
+| `api.cloutscape.org` | `http://localhost:8080` | `/api` | **Backend API**: Routes all tRPC and OAuth requests. |
 
 ### ⚠️ Important: WebSocket Support
-The Clutch engine and real-time features require WebSockets. Ensure **WebSockets** are enabled in your Cloudflare Dashboard under **Websites** > **[yourdomain.com]** > **Network**.
+The Clutch engine and real-time features require WebSockets. Ensure **WebSockets** are enabled in your Cloudflare Dashboard under **Websites** > **[cloutscape.org]** > **Network**.
 
 ---
 
@@ -35,7 +35,7 @@ Ensure these variables are correctly set in your production `.env` file:
 CLUTCH_API_URL=http://localhost:8081 
 
 # The public URL used for iframe embedding (should match your domain)
-CLUTCH_PUBLIC_URL=https://yourdomain.com/games/clutch
+CLUTCH_PUBLIC_URL=https://cloutscape.org/games/clutch
 
 # Secure key for signing game session tokens
 CLUTCH_API_KEY=your-secure-clutch-key
@@ -53,7 +53,7 @@ The `scripts/deploy-universal-v2.sh` script automatically:
 
 After deployment, you can verify that both the routes and the engine are working correctly:
 
-1. **Check API Health**: Visit `https://api.yourdomain.com/health`. It should return `{"status": "ok"}`.
+1. **Check API Health**: Visit `https://api.cloutscape.org/health`. It should return `{"status": "ok"}`.
 2. **Check Game Listing**: Log in to your site and navigate to the Games page. You should see the list of games populated from the Clutch engine.
 3. **Launch a Game**: Click on a game. If the iframe loads the game successfully, the integration is complete.
 

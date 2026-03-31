@@ -157,8 +157,8 @@ DATABASE_URL=mysql://user:password@localhost:3306/kodakclout
 # Server
 PORT=8080
 NODE_ENV=production
-SERVER_URL=https://yourdomain.com
-CLIENT_URL=https://yourdomain.com
+SERVER_URL=https://cloutscape.org
+CLIENT_URL=https://cloutscape.org
 
 # JWT
 JWT_SECRET=your-secure-random-key

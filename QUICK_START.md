@@ -86,8 +86,8 @@ Update these critical values:
 
 ```env
 # Your domain
-SERVER_URL=https://yourdomain.com
-CLIENT_URL=https://yourdomain.com
+SERVER_URL=https://cloutscape.org
+CLIENT_URL=https://cloutscape.org
 
 # Google OAuth credentials (from https://console.cloud.google.com/)
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -108,14 +108,14 @@ sudo -u kodakclout pm2 restart kodakclout-server
 Update your DNS records to point to your server:
 
 ```
-yourdomain.com    A    your.server.ip.address
-www.yourdomain.com    CNAME    yourdomain.com
+cloutscape.org    A    your.server.ip.address
+www.cloutscape.org    CNAME    cloutscape.org
 ```
 
 ### 4. Configure SSL/TLS (Recommended)
 
 ```bash
-sudo certbot certonly --nginx -d yourdomain.com -d www.yourdomain.com
+sudo certbot certonly --nginx -d cloutscape.org -d www.cloutscape.org
 ```
 
 Then update Nginx configuration:
@@ -130,10 +130,10 @@ Add SSL configuration:
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name yourdomain.com www.yourdomain.com;
+    server_name cloutscape.org www.cloutscape.org;
 
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/cloutscape.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cloutscape.org/privkey.pem;
 
     # ... rest of configuration
 }
@@ -142,7 +142,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name yourdomain.com www.yourdomain.com;
+    server_name cloutscape.org www.cloutscape.org;
     return 301 https://$server_name$request_uri;
 }
 ```
@@ -399,7 +399,7 @@ tar -xzf kodakclout-backup.tar.gz -C /
 
 1. Configure your domain and SSL certificate
 2. Update environment variables with your credentials
-3. Test the application at http://yourdomain.com
+3. Test the application at http://cloutscape.org
 4. Configure Google OAuth for authentication
 5. Set up monitoring and alerting
 6. Implement backup procedures
