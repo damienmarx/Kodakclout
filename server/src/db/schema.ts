@@ -1,4 +1,4 @@
-import { mysqlTable, serial, varchar, timestamp, text, boolean } from "drizzle-orm/mysql-core";
+import { mysqlTable, serial, varchar, timestamp, text, boolean, int } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
@@ -9,6 +9,7 @@ export const users = mysqlTable("users", {
   googleId: varchar("google_id", { length: 255 }).unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  balance: int("balance").default(0).notNull(),
 });
 
 export const sessions = mysqlTable("sessions", {
