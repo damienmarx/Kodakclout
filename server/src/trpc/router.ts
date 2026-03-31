@@ -3,6 +3,7 @@ import { GamesQuery, Session } from "@kodakclout/shared";
 import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } from "@kodakclout/shared";
 import { ClutchProvider } from "../providers/clutch.js";
 import { authRouter } from "./auth.js";
+import { adminRouter } from "./admin.js";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
@@ -12,6 +13,7 @@ const clutch = ClutchProvider.getInstance();
 
 export const appRouter = router({
   auth: authRouter,
+  admin: adminRouter,
   getGames: publicProcedure
     .input(GamesQuerySchema)
     .output(GamesListResponseSchema)
