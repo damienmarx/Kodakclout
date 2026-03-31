@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { appRouter } from "./trpc/router.js";
 import { createContext } from "./trpc/trpc.js";
 import { API_PREFIX, TRPC_PREFIX } from "@kodakclout/shared";
+import { OAuth2Client } from "google-auth-library";
 
 dotenv.config();
 
@@ -56,16 +57,43 @@ app.use(
   })
 );
 
-// OAuth Routes (Mock for now)
+// ─── OAuth Routes ──────────────────────────────────────────────────────────────
+// Google OAuth initiation
 app.get(`${API_PREFIX}/oauth/google`, (req, res) => {
-  // Redirect to Google OAuth
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${process.env.CLIENT_URL}/api/oauth/google/callback&response_type=code&scope=email%20profile`);
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = `${process.env.SERVER_URL || 'http://localhost:8080'}${API_PREFIX}/oauth/google/callback`;
+  const scope = "openid email profile";
+  const responseType = "code";
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=${responseType}&scope=${encodeURIComponent(scope)}`;
+  
+  res.redirect(authUrl);
 });
 
+// Google OAuth callback handler
 app.get(`${API_PREFIX}/oauth/google/callback`, async (req, res) => {
-  // Handle Google OAuth callback, create session, etc.
-  // This would typically use the google-auth-library
-  res.redirect(`${process.env.CLIENT_URL}/home`);
+  const { code, error } = req.query;
+
+  if (error) {
+    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=${error}`);
+  }
+
+  if (!code || typeof code !== 'string') {
+    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=missing_code`);
+  }
+
+  try {
+    // Call the tRPC procedure to handle OAuth callback
+    const caller = appRouter.createCaller({ req, res, user: null });
+    const result = await caller.auth.googleOAuthCallback({ code });
+
+    // Redirect to home page on success
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/home`);
+  } catch (error) {
+    console.error("OAuth callback error:", error);
+    const errorMessage = error instanceof Error ? error.message : "OAuth failed";
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=${encodeURIComponent(errorMessage)}`);
+  }
 });
 
 // ─── REST Game Route (non-tRPC clients) ──────────────────────────────────────
