@@ -1,5 +1,3 @@
-export * from "./types/auth.js";
-export * from "./types/game.js";
-export * from "./schemas/auth.js";
-export * from "./schemas/game.js";
+export * from "./types/index.js";
+export * from "./schemas/index.js";
 export * from "./constants.js";
