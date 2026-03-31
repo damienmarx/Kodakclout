@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { UserPlus, Mail, Lock, User, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Lock, User, ArrowRight, ShieldCheck, Loader2, Chrome } from "lucide-react";
 import { trpc } from "../lib/trpc";
-import { APP_NAME } from "@kodakclout/shared";
+import { APP_NAME, API_PREFIX } from "@kodakclout/shared";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -24,6 +24,10 @@ export default function Register() {
     e.preventDefault();
     setError("");
     registerMutation.mutate({ name, email, password });
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = `${import.meta.env.VITE_API_URL || ""}${API_PREFIX}/oauth/google`;
   };
 
   return (
@@ -104,6 +108,25 @@ export default function Register() {
               {!registerMutation.isLoading && <ArrowRight className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />}
             </button>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-zinc-800"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-zinc-900 px-4 text-zinc-500 font-bold">Or continue with</span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <button 
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 py-4 bg-white text-black font-bold rounded-2xl transition-all hover:bg-zinc-200 active:scale-95 group"
+            >
+              <Chrome className="w-5 h-5" />
+              Google OAuth
+            </button>
+          </div>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
