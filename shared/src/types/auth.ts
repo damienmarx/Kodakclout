@@ -12,6 +12,7 @@ export interface Session {
   email: string;
   name: string;
   avatar?: string;
+  balance?: number;
   expiresAt: Date;
 }
 

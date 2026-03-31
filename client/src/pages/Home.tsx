@@ -27,14 +27,21 @@ export default function Home() {
           <div className="flex gap-4 items-center">
             <Link to="/games" className="text-sm font-semibold text-red-200/70 hover:text-red-300 transition-colors">Games</Link>
             {user ? (
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-red-200/60">Hi, <span className="text-red-300 font-bold">{user.name}</span></span>
-                <button 
-                  onClick={logout}
-                  className="px-4 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-200 text-sm font-semibold rounded-lg transition-all border border-red-700/50"
-                >
-                  Sign Out
-                </button>
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-end">
+                  <span className="text-xs text-red-200/40 uppercase tracking-widest font-black">Balance</span>
+                  <span className="text-sm font-black text-red-400">${(user.balance || 0).toLocaleString()}</span>
+                </div>
+                <div className="h-8 w-px bg-red-900/30" />
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-red-200/60">Hi, <span className="text-red-300 font-bold">{user.name}</span></span>
+                  <button 
+                    onClick={logout}
+                    className="px-4 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-200 text-sm font-semibold rounded-lg transition-all border border-red-700/50"
+                  >
+                    Sign Out
+                  </button>
+                </div>
               </div>
             ) : (
               <Link to="/login" className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-red-600/40">Sign In</Link>
