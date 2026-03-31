@@ -4,6 +4,9 @@ import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } f
 import { ClutchProvider } from "../providers/clutch.js";
 import { authRouter } from "./auth.js";
 import { z } from "zod";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+import { eq, sql } from "drizzle-orm";
 
 const clutch = ClutchProvider.getInstance();
 
@@ -48,9 +51,44 @@ export const appRouter = router({
       return launch;
     }),
 
-  me: publicProcedure.query(({ ctx }: { ctx: { user: Session | null } }) => {
-    return ctx.user;
+  me: publicProcedure.query(async ({ ctx }: { ctx: { user: Session | null } }) => {
+    if (!ctx.user) return null;
+    
+    const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+    if (!user) return null;
+
+    return {
+      ...ctx.user,
+      balance: user.balance
+    };
   }),
+
+  deposit: protectedProcedure
+    .input(z.object({ amount: z.number().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      await db.update(users)
+        .set({ balance: sql`${users.balance} + ${input.amount}` })
+        .where(eq(users.id, ctx.user.userId));
+      
+      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+      return { balance: user.balance };
+    }),
+
+  withdraw: protectedProcedure
+    .input(z.object({ amount: z.number().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+      if (!user || user.balance < input.amount) {
+        throw new Error("Insufficient balance");
+      }
+
+      await db.update(users)
+        .set({ balance: sql`${users.balance} - ${input.amount}` })
+        .where(eq(users.id, ctx.user.userId));
+      
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+      return { balance: updatedUser.balance };
+    }),
 });
 
 export type AppRouter = typeof appRouter;
