@@ -4,8 +4,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const CLUTCH_API_URL = process.env.CLUTCH_API_URL || "https://api.clutch.io";
-const CLUTCH_API_KEY = process.env.CLUTCH_API_KEY;
+const CLUTCH_API_URL = process.env.CLUTCH_API_URL || "http://localhost:8081";
+const CLUTCH_API_KEY = process.env.CLUTCH_API_KEY || "local-clutch-key";
 
 export class ClutchProvider {
   private static instance: ClutchProvider;
@@ -29,10 +29,6 @@ export class ClutchProvider {
     });
   }
 
-  /**
-   * Fetches the list of available games from the Clutch engine.
-   * Maps Clutch's GameInfo to the Kodakclout Game interface.
-   */
   async getGames(): Promise<Game[]> {
     try {
       const response = await this.client.get("/game/list", {
@@ -41,44 +37,37 @@ export class ClutchProvider {
       
       const clutchGames = response.data.list || [];
       return clutchGames.map((g: any) => ({
-        id: g.name, // Using name as ID for Clutch games
+        id: g.name,
         slug: g.name.toLowerCase().replace(/\s+/g, "-"),
         title: g.name,
         provider: "clutch",
-        category: "slots", // Clutch is primarily a slots engine
+        category: "slots",
         thumbnail: `/assets/games/${g.name.toLowerCase().replace(/\s+/g, "-")}.png`,
         isActive: true,
       }));
     } catch (error) {
-      console.error("Clutch getGames error:", error);
+      console.error("Clutch getGames error (local):", error.message);
       return [];
     }
   }
 
-  /**
-   * Creates a new game session in Clutch and returns the launch parameters.
-   */
   async getLaunchUrl(gameSlug: string, userId: string): Promise<GameLaunchResponse> {
     try {
-      // 1. Create a new game session (ApiGameNew)
-      // For the unified platform, we assume CID 1 is the default club
-      // Note: Clutch expects numeric IDs, so we convert userId if needed
       const response = await this.client.post("/game/new", {
         cid: 1,
-        uid: parseInt(userId) || 1, // Fallback to 1 for testing
+        uid: parseInt(userId) || 1,
         alias: gameSlug
       });
 
       const { gid } = response.data;
       
-      // The launch URL points to the Clutch UI with the game ID (gid)
       return {
         url: `${CLUTCH_API_URL}/?gid=${gid}&cid=1&uid=${userId}`,
         token: response.data.access,
       };
     } catch (error) {
-      console.error("Clutch getLaunchUrl error:", error);
-      throw new Error("Failed to launch game from Clutch engine");
+      console.error("Clutch getLaunchUrl error (local):", error.message);
+      throw new Error("Failed to launch game from local Clutch engine");
     }
   }
 
