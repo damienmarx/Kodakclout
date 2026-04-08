@@ -45,8 +45,8 @@ export class ClutchProvider {
         thumbnail: `/assets/games/${g.name.toLowerCase().replace(/\s+/g, "-")}.png`,
         isActive: true,
       }));
-    } catch (error) {
-      console.error("Clutch getGames error (local):", error.message);
+    } catch (error: any) {
+      console.error("Clutch getGames error (local):", error?.message || "Unknown error");
       return [];
     }
   }
@@ -65,8 +65,8 @@ export class ClutchProvider {
         url: `${CLUTCH_API_URL}/?gid=${gid}&cid=1&uid=${userId}`,
         token: response.data.access,
       };
-    } catch (error) {
-      console.error("Clutch getLaunchUrl error (local):", error.message);
+    } catch (error: any) {
+      console.error("Clutch getLaunchUrl error (local):", error?.message || "Unknown error");
       throw new Error("Failed to launch game from local Clutch engine");
     }
   }
