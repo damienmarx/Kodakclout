@@ -108,6 +108,31 @@ export const appRouter = router({
       const [updatedUser] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
       return { balance: updatedUser.balance };
     }),
+
+  // ─── Internal Games ────────────────────────────────────────────────────────
+  playDice: protectedProcedure
+    .input(z.object({ 
+      bet: z.number().positive(), 
+      target: z.number().min(1).max(98), 
+      type: z.enum(["over", "under"]) 
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+      if (!user || user.balance < input.bet) {
+        throw new Error("Insufficient balance");
+      }
+
+      const result = await internal.playDice(ctx.user.userId, input.bet, input.target, input.type);
+      
+      // Update balance
+      const balanceChange = result.payout - input.bet;
+      await db.update(users)
+        .set({ balance: sql`${users.balance} + ${balanceChange}` })
+        .where(eq(users.id, ctx.user.userId));
+
+      const [updatedUser] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
+      return { ...result, newBalance: updatedUser.balance };
+    }),
 });
 
 export type AppRouter = typeof appRouter;

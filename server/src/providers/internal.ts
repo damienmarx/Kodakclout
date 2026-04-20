@@ -48,11 +48,44 @@ export class InternalProvider {
   }
 
   async getLaunchUrl(gameSlug: string, userId: string): Promise<GameLaunchResponse> {
-    // For internal games, we point to our own internal game engine/UI
-    // This will be implemented as a separate route or client-side component
     return {
       url: `/play/${gameSlug}?uid=${userId}`,
       token: "internal-session-token",
     };
+  }
+
+  /**
+   * ─── Internal Game Engine ──────────────────────────────────────────────────
+   * Logic for standalone games with configurable house edge.
+   * ───────────────────────────────────────────────────────────────────────────
+   */
+
+  // Dice Logic: Roll 0-100. House edge applied via win probability.
+  async playDice(userId: number, bet: number, target: number, type: "over" | "under") {
+    const houseEdge = 0.04; // 4% House Edge
+    const roll = Math.random() * 100;
+    
+    let win = false;
+    if (type === "over") {
+      win = roll > target;
+    } else {
+      win = roll < target;
+    }
+
+    // Calculate multiplier based on probability
+    const probability = type === "over" ? (100 - target) : target;
+    const multiplier = (100 / probability) * (1 - houseEdge);
+    const payout = win ? bet * multiplier : 0;
+
+    return { roll, win, payout, multiplier: win ? multiplier : 0 };
+  }
+
+  // Crash Logic: Random multiplier with house edge.
+  async playCrash() {
+    const houseEdge = 0.03; // 3% House Edge
+    // Classic crash formula: 0.97 / (1 - X) where X is uniform [0, 1)
+    const r = Math.random();
+    const crashPoint = Math.max(1, (1 - houseEdge) / (1 - r));
+    return { crashPoint: parseFloat(crashPoint.toFixed(2)) };
   }
 }
