@@ -80,7 +80,13 @@ sync_engine() {
     pnpm install
     pnpm build
     pm2 restart kodakclout
-    success "Engine synchronized and rebooted."
+    
+    # Setup Health Engine Cron
+    log "Installing Autonomous Health Engine..."
+    chmod +x scripts/health-engine.sh
+    (crontab -l 2>/dev/null | grep -v "health-engine.sh"; echo "*/5 * * * * $(pwd)/scripts/health-engine.sh") | crontab -
+    
+    success "Engine synchronized, rebooted, and Health Engine active."
 }
 
 # ─── Main Menu ───────────────────────────────────────────────────────────────
