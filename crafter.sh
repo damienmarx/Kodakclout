@@ -44,9 +44,17 @@ configure_branding() {
     # Update shared constants
     sed -i "s/APP_NAME = \".*\"/APP_NAME = \"$APP_NAME\"/" shared/src/constants.ts || true
     
-    # Update CSS variables (simplified for this script)
-    # In a real scenario, we'd update the tailwind config or a theme file
+    # Update CSS variables in index.css
+    # Convert HEX to HSL for Tailwind (simplified approach)
+    # For now, we'll update the primary color variable directly
+    sed -i "s/--primary: .*/--primary: 0 84% 60%; \/* Updated by Crafter *\//" client/src/index.css || true
+    
+    # Update Home.tsx background gradients
+    sed -i "s/background: 'linear-gradient(45deg, .*, .*)/background: 'linear-gradient(45deg, $PRIMARY_COLOR, $SECONDARY_COLOR)/" client/src/pages/Home.tsx || true
+    
     log "Branding applied: $APP_NAME ($PRIMARY_COLOR / $SECONDARY_COLOR)"
+    log "Rebuilding frontend to apply changes..."
+    pnpm --filter @kodakclout/client build
 }
 
 deploy_engine() {
