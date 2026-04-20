@@ -12,6 +12,7 @@ import GamePage from "./pages/GamePage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
+import Admin from "./pages/Admin";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
                 <Route path="/home" element={<Home />} />
                 <Route path="/games" element={<Games />} />
                 <Route path="/game/:slug" element={<GamePage />} />
+                <Route path="/admin" element={<Admin />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
