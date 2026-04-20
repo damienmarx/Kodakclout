@@ -14,6 +14,7 @@ import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import { AuthProvider } from "./context/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
   const [queryClient] = useState(() => new QueryClient());
@@ -31,12 +32,13 @@ export default function App() {
   );
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <BrowserRouter>
-            <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-indigo-500/30">
-              <Routes>
+    <ErrorBoundary>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <BrowserRouter>
+              <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-indigo-500/30">
+                <Routes>
                 <Route path="/" element={<Navigate to="/home" replace />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
@@ -45,11 +47,12 @@ export default function App() {
                 <Route path="/game/:slug" element={<GamePage />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-          </BrowserRouter>
-        </AuthProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+                </Routes>
+              </div>
+            </BrowserRouter>
+          </AuthProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
+    </ErrorBoundary>
   );
 }
