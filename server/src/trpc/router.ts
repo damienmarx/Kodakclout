@@ -2,6 +2,7 @@ import { router, publicProcedure, protectedProcedure } from "./trpc.js";
 import { GamesQuery, Session } from "@kodakclout/shared";
 import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } from "@kodakclout/shared";
 import { ClutchProvider } from "../providers/clutch.js";
+import { InternalProvider } from "../providers/internal.js";
 import { authRouter } from "./auth.js";
 import { adminRouter } from "./admin.js";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import { users } from "../db/schema.js";
 import { eq, sql } from "drizzle-orm";
 
 const clutch = ClutchProvider.getInstance();
+const internal = InternalProvider.getInstance();
 
 export const appRouter = router({
   auth: authRouter,
@@ -18,12 +20,21 @@ export const appRouter = router({
     .input(GamesQuerySchema)
     .output(GamesListResponseSchema)
     .query(async ({ input }: { input: GamesQuery }) => {
-      const { page, pageSize, category, search } = input;
-      const allGames = await clutch.getGames();
+      const { page, pageSize, category, search, provider } = input;
+      
+      const [clutchGames, internalGames] = await Promise.all([
+        clutch.getGames(),
+        internal.getGames()
+      ]);
+      
+      let allGames = [...internalGames, ...clutchGames];
       
       let filtered = allGames;
       if (category) {
         filtered = filtered.filter(g => g.category === category);
+      }
+      if (provider) {
+        filtered = filtered.filter(g => g.provider === provider);
       }
       if (search) {
         const lowerSearch = search.toLowerCase();
@@ -49,8 +60,14 @@ export const appRouter = router({
     .input(z.object({ slug: z.string() }))
     .output(GameLaunchResponseSchema)
     .mutation(async ({ input, ctx }: { input: { slug: string }, ctx: { user: Session } }) => {
-      const launch = await clutch.getLaunchUrl(input.slug, ctx.user.userId.toString());
-      return launch;
+      const internalGames = await internal.getGames();
+      const isInternal = internalGames.some(g => g.slug === input.slug);
+      
+      if (isInternal) {
+        return await internal.getLaunchUrl(input.slug, ctx.user.userId.toString());
+      }
+      
+      return await clutch.getLaunchUrl(input.slug, ctx.user.userId.toString());
     }),
 
   me: publicProcedure.query(async ({ ctx }: { ctx: { user: Session | null } }) => {
