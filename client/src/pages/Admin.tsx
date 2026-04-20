@@ -34,11 +34,11 @@ const Admin: React.FC = () => {
           <div className="flex gap-4">
             <div className="glass p-4 rounded-xl">
               <p className="text-[10px] text-white/40 uppercase font-mono">Total Users</p>
-              <p className="text-xl font-bold">{stats.data?.userCount || 0}</p>
+              <p className="text-xl font-bold">{stats.data?.totalUsers || 0}</p>
             </div>
             <div className="glass p-4 rounded-xl">
               <p className="text-[10px] text-white/40 uppercase font-mono">Total Games</p>
-              <p className="text-xl font-bold">{stats.data?.gameCount || 0}</p>
+              <p className="text-xl font-bold">{stats.data?.totalGames || 0}</p>
             </div>
           </div>
         </div>

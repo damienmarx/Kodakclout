@@ -61,7 +61,7 @@ export class InternalProvider {
    */
 
   // Dice Logic: Roll 0-100. House edge applied via win probability.
-  async playDice(userId: number, bet: number, target: number, type: "over" | "under") {
+  async playDice(_userId: number, bet: number, target: number, type: "over" | "under") {
     const houseEdge = 0.04; // 4% House Edge
     const roll = Math.random() * 100;
     

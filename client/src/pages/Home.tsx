@@ -83,7 +83,7 @@ const Home: React.FC = () => {
                 <div className="text-center w-full max-w-md">
                   <div className="mb-8 p-8 glass-card rounded-3xl">
                     <p className="text-white/50 uppercase text-xs tracking-widest mb-2 font-mono">Current Balance</p>
-                    <h3 className="text-5xl font-black text-green-400">${user.balance.toLocaleString()}</h3>
+                    <h3 className="text-5xl font-black text-green-400">${(user.balance || 0).toLocaleString()}</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <Link to="/games" className="glass-card p-6 rounded-2xl hover:bg-white/10 transition-all text-center font-bold">
