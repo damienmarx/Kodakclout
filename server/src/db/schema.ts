@@ -31,3 +31,12 @@ export const games = mysqlTable("games", {
   isHot: boolean("is_hot").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const transactions = mysqlTable("transactions", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id").notNull(),
+  amount: int("amount").notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // deposit, withdraw, bet, win
+  reference: varchar("reference", { length: 255 }), // game slug or tx hash
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

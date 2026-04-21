@@ -7,7 +7,7 @@ import { authRouter } from "./auth.js";
 import { adminRouter } from "./admin.js";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
+import { users, transactions } from "../db/schema.js";
 import { eq, sql } from "drizzle-orm";
 
 const clutch = ClutchProvider.getInstance();
@@ -90,6 +90,13 @@ export const appRouter = router({
           .set({ balance: sql`${users.balance} + ${input.amount}` })
           .where(eq(users.id, ctx.user.userId));
         
+        await tx.insert(transactions).values({
+          userId: ctx.user.userId,
+          amount: input.amount,
+          type: "deposit",
+          reference: "manual_deposit"
+        });
+        
         const [user] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
         if (!user) throw new Error("User not found during deposit");
         return { balance: user.balance };
@@ -108,6 +115,13 @@ export const appRouter = router({
         await tx.update(users)
           .set({ balance: sql`${users.balance} - ${input.amount}` })
           .where(eq(users.id, ctx.user.userId));
+        
+        await tx.insert(transactions).values({
+          userId: ctx.user.userId,
+          amount: -input.amount,
+          type: "withdraw",
+          reference: "manual_withdraw"
+        });
         
         const [updatedUser] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
         if (!updatedUser) throw new Error("User not found during withdrawal");
@@ -136,6 +150,24 @@ export const appRouter = router({
         await tx.update(users)
           .set({ balance: sql`${users.balance} + ${balanceChange}` })
           .where(eq(users.id, ctx.user.userId));
+
+        // Log bet
+        await tx.insert(transactions).values({
+          userId: ctx.user.userId,
+          amount: -input.bet,
+          type: "bet",
+          reference: "dice"
+        });
+
+        // Log win if any
+        if (result.payout > 0) {
+          await tx.insert(transactions).values({
+            userId: ctx.user.userId,
+            amount: result.payout,
+            type: "win",
+            reference: "dice"
+          });
+        }
 
         const [updatedUser] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
         if (!updatedUser) throw new Error("User not found after play");
