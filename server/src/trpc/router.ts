@@ -85,28 +85,34 @@ export const appRouter = router({
   deposit: protectedProcedure
     .input(z.object({ amount: z.number().positive() }))
     .mutation(async ({ input, ctx }) => {
-      await db.update(users)
-        .set({ balance: sql`${users.balance} + ${input.amount}` })
-        .where(eq(users.id, ctx.user.userId));
-      
-      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
-      return { balance: user.balance };
+      return await db.transaction(async (tx) => {
+        await tx.update(users)
+          .set({ balance: sql`${users.balance} + ${input.amount}` })
+          .where(eq(users.id, ctx.user.userId));
+        
+        const [user] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
+        if (!user) throw new Error("User not found during deposit");
+        return { balance: user.balance };
+      });
     }),
 
   withdraw: protectedProcedure
     .input(z.object({ amount: z.number().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
-      if (!user || user.balance < input.amount) {
-        throw new Error("Insufficient balance");
-      }
+      return await db.transaction(async (tx) => {
+        const [user] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
+        if (!user || user.balance < input.amount) {
+          throw new Error("Insufficient balance");
+        }
 
-      await db.update(users)
-        .set({ balance: sql`${users.balance} - ${input.amount}` })
-        .where(eq(users.id, ctx.user.userId));
-      
-      const [updatedUser] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
-      return { balance: updatedUser.balance };
+        await tx.update(users)
+          .set({ balance: sql`${users.balance} - ${input.amount}` })
+          .where(eq(users.id, ctx.user.userId));
+        
+        const [updatedUser] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
+        if (!updatedUser) throw new Error("User not found during withdrawal");
+        return { balance: updatedUser.balance };
+      });
     }),
 
   // ─── Internal Games ────────────────────────────────────────────────────────
@@ -117,21 +123,24 @@ export const appRouter = router({
       type: z.enum(["over", "under"]) 
     }))
     .mutation(async ({ input, ctx }) => {
-      const [user] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
-      if (!user || user.balance < input.bet) {
-        throw new Error("Insufficient balance");
-      }
+      return await db.transaction(async (tx) => {
+        const [user] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
+        if (!user || user.balance < input.bet) {
+          throw new Error("Insufficient balance");
+        }
 
-      const result = await internal.playDice(ctx.user.userId, input.bet, input.target, input.type);
-      
-      // Update balance
-      const balanceChange = result.payout - input.bet;
-      await db.update(users)
-        .set({ balance: sql`${users.balance} + ${balanceChange}` })
-        .where(eq(users.id, ctx.user.userId));
+        const result = await internal.playDice(ctx.user.userId, input.bet, input.target, input.type);
+        
+        // Update balance atomically
+        const balanceChange = result.payout - input.bet;
+        await tx.update(users)
+          .set({ balance: sql`${users.balance} + ${balanceChange}` })
+          .where(eq(users.id, ctx.user.userId));
 
-      const [updatedUser] = await db.select().from(users).where(eq(users.id, ctx.user.userId));
-      return { ...result, newBalance: updatedUser.balance };
+        const [updatedUser] = await tx.select().from(users).where(eq(users.id, ctx.user.userId));
+        if (!updatedUser) throw new Error("User not found after play");
+        return { ...result, newBalance: updatedUser.balance };
+      });
     }),
 });
 

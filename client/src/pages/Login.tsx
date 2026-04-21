@@ -13,8 +13,9 @@ export default function Login() {
   const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
-    if (location.state && (location.state as any).message) {
-      setSuccessMsg((location.state as any).message);
+    const state = location.state as { message?: string } | null;
+    if (state?.message) {
+      setSuccessMsg(state.message);
     }
   }, [location]);
 

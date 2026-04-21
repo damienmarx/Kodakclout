@@ -12,7 +12,7 @@ export default function Games() {
 
   const { data, isLoading } = trpc.getGames.useQuery({
     search: search || undefined,
-    category: category as any,
+    category: category as GameCategory | undefined,
     page: 1,
     pageSize: 48,
   });
@@ -143,7 +143,7 @@ function GameCard({ game }: { game: Game }) {
   );
 }
 
-function LayoutGridIcon(props: any) {
+function LayoutGridIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

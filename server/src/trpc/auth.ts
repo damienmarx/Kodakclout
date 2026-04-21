@@ -8,8 +8,8 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE } from "@kodakclout/shared";
 
-const JWT_SECRET = process.env.JWT_SECRET || "kodakclout-local-secret-key";
-const SALT_ROUNDS = parseInt(process.env.PASSWORD_SALT_ROUNDS || "12");
+const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS || "12");
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-only";
 
 export const authRouter = router({
   register: publicProcedure
@@ -19,26 +19,24 @@ export const authRouter = router({
       name: z.string().min(2),
     }))
     .mutation(async ({ input }) => {
-      const existingUser = await db.query.users.findFirst({
-        where: eq(users.email, input.email),
-      });
-
-      if (existingUser) {
+      const existingUser = await db.select().from(users).where(eq(users.email, input.email));
+      if (existingUser.length > 0) {
         throw new TRPCError({
           code: "CONFLICT",
-          message: "User already exists with this email",
+          message: "Email already in use",
         });
       }
 
       const hashedPassword = await bcrypt.hash(input.password, SALT_ROUNDS);
-
-      const [result] = await db.insert(users).values({
+      
+      await db.insert(users).values({
         email: input.email,
         password: hashedPassword,
         name: input.name,
+        balance: 1000, // Starting balance for new users
       });
 
-      return { success: true, userId: result.insertId };
+      return { success: true };
     }),
 
   login: publicProcedure
@@ -47,10 +45,7 @@ export const authRouter = router({
       password: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const user = await db.query.users.findFirst({
-        where: eq(users.email, input.email),
-      });
-
+      const [user] = await db.select().from(users).where(eq(users.email, input.email));
       if (!user || !user.password) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -58,25 +53,23 @@ export const authRouter = router({
         });
       }
 
-      const isPasswordValid = await bcrypt.compare(input.password, user.password);
-
-      if (!isPasswordValid) {
+      const validPassword = await bcrypt.compare(input.password, user.password);
+      if (!validPassword) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Invalid email or password",
         });
       }
 
-      const sessionData = {
+      const session = {
         userId: user.id,
         email: user.email,
         name: user.name,
-        avatar: user.avatar,
-        balance: user.balance,
+        avatar: user.avatar || undefined,
         expiresAt: new Date(Date.now() + SESSION_MAX_AGE),
       };
 
-      const token = jwt.sign(sessionData, JWT_SECRET);
+      const token = jwt.sign(session, JWT_SECRET);
 
       ctx.res.cookie(SESSION_COOKIE_NAME, token, {
         httpOnly: true,
@@ -85,10 +78,18 @@ export const authRouter = router({
         maxAge: SESSION_MAX_AGE,
       });
 
-      return { success: true, user: sessionData };
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          balance: user.balance,
+        }
+      };
     }),
 
-  logout: publicProcedure.mutation(({ ctx }) => {
+  logout: publicProcedure.mutation(async ({ ctx }) => {
     ctx.res.clearCookie(SESSION_COOKIE_NAME);
     return { success: true };
   }),

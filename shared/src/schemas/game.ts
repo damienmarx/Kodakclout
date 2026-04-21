@@ -33,7 +33,7 @@ export const GamesListResponseSchema = z.object({
 });
 
 export const GameLaunchResponseSchema = z.object({
-  url: z.string().url(),
+  url: z.string().url().or(z.string().startsWith("/")),
   token: z.string().optional(),
   expiresAt: z.string().optional(),
 });

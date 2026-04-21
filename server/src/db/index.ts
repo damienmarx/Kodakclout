@@ -10,50 +10,43 @@ if (!process.env.DATABASE_URL) {
 }
 
 /**
- * Enhanced Database Connection with Error Handling and Callbacks
+ * Hardened Database Connection Pool
  */
 const createConnection = () => {
   try {
     const pool = mysql.createPool({
       uri: process.env.DATABASE_URL,
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 20, // Increased for production
       queueLimit: 0,
       enableKeepAlive: true,
-      keepAliveInitialDelay: 0,
+      keepAliveInitialDelay: 10000,
+      connectTimeout: 10000, // 10s timeout
     });
 
-    // Connection lifecycle callbacks
-    pool.on("acquire", (connection) => {
-      console.log(`[DB] Connection ${connection.threadId} acquired`);
-    });
-
-    pool.on("enqueue", () => {
-      console.warn("[DB] Waiting for available connection slot");
-    });
-
-    pool.on("release", (connection) => {
-      console.log(`[DB] Connection ${connection.threadId} released`);
-    });
-
-    pool.on("connection", (_connection) => {
-      console.log("[DB] New connection established in pool");
+    // Error handling for the pool
+    pool.on("error", (err) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("[DB] Unexpected pool error:", err);
+      }
     });
 
     return pool;
   } catch (error) {
-    console.error("[DB] Failed to create connection pool:", error);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[DB] Failed to create connection pool:", error);
+    }
     process.exit(1);
   }
 };
 
 const pool = createConnection();
 
-// Initialize Drizzle with the enhanced pool
+// Initialize Drizzle with the hardened pool
 export const db = drizzle(pool, { 
   schema, 
   mode: "default",
-  // Log queries in development for better debugging
+  // No logging in production for performance and security
   logger: process.env.NODE_ENV === "development"
 });
 
@@ -62,10 +55,14 @@ export const db = drizzle(pool, {
  */
 export const checkDbHealth = async () => {
   try {
-    await pool.query("SELECT 1");
+    const connection = await pool.getConnection();
+    await connection.query("SELECT 1");
+    connection.release();
     return { status: "connected", timestamp: new Date().toISOString() };
   } catch (error) {
-    console.error("[DB] Health check failed:", error);
-    return { status: "disconnected", error: error instanceof Error ? error.message : String(error) };
+    return { 
+      status: "disconnected", 
+      error: error instanceof Error ? error.message : "Unknown database error" 
+    };
   }
 };

@@ -6,7 +6,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "kodakclout-secret-key-damien";
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET must be defined in production environment");
+}
+
+const FALLBACK_SECRET = "dev-secret-only";
 
 export const createContext = ({ req, res }: CreateExpressContextOptions) => {
   const token = req.cookies?.kodakclout_session;
@@ -14,9 +20,9 @@ export const createContext = ({ req, res }: CreateExpressContextOptions) => {
 
   if (token) {
     try {
-      user = jwt.verify(token, JWT_SECRET) as Session;
+      user = jwt.verify(token, JWT_SECRET || FALLBACK_SECRET) as Session;
     } catch (err) {
-      // Invalid token
+      // Invalid token - silently fail and leave user as null
     }
   }
 

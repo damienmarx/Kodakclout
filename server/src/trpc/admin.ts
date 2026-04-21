@@ -58,9 +58,7 @@ export const adminRouter = router({
   getUserById: adminProcedure
     .input(z.object({ userId: z.number() }))
     .query(async ({ input }) => {
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, input.userId),
-      });
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
 
       if (!user) {
         throw new TRPCError({
@@ -86,9 +84,7 @@ export const adminRouter = router({
       balance: z.number().min(0),
     }))
     .mutation(async ({ input }) => {
-      const user = await db.query.users.findFirst({
-        where: eq(users.id, input.userId),
-      });
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId));
 
       if (!user) {
         throw new TRPCError({
@@ -134,9 +130,7 @@ export const adminRouter = router({
       isHot: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const game = await db.query.games.findFirst({
-        where: eq(games.id, input.gameId),
-      });
+      const [game] = await db.select().from(games).where(eq(games.id, input.gameId));
 
       if (!game) {
         throw new TRPCError({
@@ -145,7 +139,7 @@ export const adminRouter = router({
         });
       }
 
-      const updates: any = {};
+      const updates: Partial<typeof games.$inferSelect> = {};
       if (input.title !== undefined) updates.title = input.title;
       if (input.description !== undefined) updates.description = input.description;
       if (input.isActive !== undefined) updates.isActive = input.isActive;
@@ -165,9 +159,7 @@ export const adminRouter = router({
       isActive: z.boolean(),
     }))
     .mutation(async ({ input }) => {
-      const game = await db.query.games.findFirst({
-        where: eq(games.id, input.gameId),
-      });
+      const [game] = await db.select().from(games).where(eq(games.id, input.gameId));
 
       if (!game) {
         throw new TRPCError({
@@ -185,12 +177,12 @@ export const adminRouter = router({
 
   // Analytics
   getStats: adminProcedure.query(async () => {
-    const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(users);
-    const [gameCount] = await db.select({ count: sql<number>`count(*)` }).from(games);
+    const [{ count: userCount }] = await db.select({ count: sql<number>`count(*)` }).from(users);
+    const [{ count: gameCount }] = await db.select({ count: sql<number>`count(*)` }).from(games);
 
     return {
-      totalUsers: userCount.count,
-      totalGames: gameCount.count,
+      totalUsers: userCount,
+      totalGames: gameCount,
       timestamp: new Date().toISOString(),
     };
   }),
