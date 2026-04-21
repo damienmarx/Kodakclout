@@ -25,7 +25,7 @@ const createConnection = () => {
     });
 
     // Error handling for the pool
-    pool.on("error", (err) => {
+    (pool as any).on("error", (err: Error) => {
       if (process.env.NODE_ENV !== "production") {
         console.error("[DB] Unexpected pool error:", err);
       }
