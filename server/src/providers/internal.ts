@@ -1,4 +1,5 @@
 import { Game, GameLaunchResponse } from "@kodakclout/shared";
+import crypto from "crypto";
 
 export class InternalProvider {
   private static instance: InternalProvider;
@@ -12,8 +13,15 @@ export class InternalProvider {
     return InternalProvider.instance;
   }
 
+  /**
+   * Secure Random Number Generation
+   * Returns a float between 0 and 1
+   */
+  private secureRandom(): number {
+    return crypto.randomBytes(4).readUInt32BE(0) / 0xffffffff;
+  }
+
   async getGames(): Promise<Game[]> {
-    // These are internal games that don't require external APIs
     return [
       {
         id: "internal-dice",
@@ -50,20 +58,20 @@ export class InternalProvider {
   async getLaunchUrl(gameSlug: string, userId: string): Promise<GameLaunchResponse> {
     return {
       url: `/play/${gameSlug}?uid=${userId}`,
-      token: "internal-session-token",
+      token: crypto.randomUUID(),
     };
   }
 
   /**
    * ─── Internal Game Engine ──────────────────────────────────────────────────
-   * Logic for standalone games with configurable house edge.
+   * Logic for standalone games with secure RNG and configurable house edge.
    * ───────────────────────────────────────────────────────────────────────────
    */
 
   // Dice Logic: Roll 0-100. House edge applied via win probability.
   async playDice(_userId: number, bet: number, target: number, type: "over" | "under") {
     const houseEdge = 0.04; // 4% House Edge
-    const roll = Math.random() * 100;
+    const roll = this.secureRandom() * 100;
     
     let win = false;
     if (type === "over") {
@@ -74,18 +82,25 @@ export class InternalProvider {
 
     // Calculate multiplier based on probability
     const probability = type === "over" ? (100 - target) : target;
+    // Multiplier = (1 / Prob) * (1 - Edge)
     const multiplier = (100 / probability) * (1 - houseEdge);
     const payout = win ? bet * multiplier : 0;
 
-    return { roll, win, payout, multiplier: win ? multiplier : 0 };
+    return { 
+      roll: parseFloat(roll.toFixed(2)), 
+      win, 
+      payout: Math.floor(payout), // Assuming balance is in integers (cents)
+      multiplier: win ? parseFloat(multiplier.toFixed(4)) : 0 
+    };
   }
 
   // Crash Logic: Random multiplier with house edge.
   async playCrash() {
     const houseEdge = 0.03; // 3% House Edge
-    // Classic crash formula: 0.97 / (1 - X) where X is uniform [0, 1)
-    const r = Math.random();
-    const crashPoint = Math.max(1, (1 - houseEdge) / (1 - r));
+    // Classic crash formula: (1 - Edge) / (1 - X) where X is uniform [0, 1)
+    const r = this.secureRandom();
+    // 0.0001 added to avoid division by zero in extreme cases
+    const crashPoint = Math.max(1, (1 - houseEdge) / (1 - r + 0.0001));
     return { crashPoint: parseFloat(crashPoint.toFixed(2)) };
   }
 }
