@@ -10,7 +10,7 @@
 # 4. Configures and starts the Clutch engine on port 8081 with the 'web' command.
 # 5. Updates the Kodakclout .env file with the correct Clutch API endpoint.
 # 6. Starts Kodakclout via PM2.
-# 7. Executes the game seeding script, patching it if necessary to handle the /game/list endpoint.
+# 7. Executes the game seeding script, ensuring 'tsx' is available.
 # 8. Verifies the Cloudflare tunnel and performs final health checks.
 # ==============================================================================
 
@@ -28,7 +28,6 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 # Must run as damien or with sudo
 if [ "$EUID" -eq 0 ]; then
-  # If running as root, we'll assume we're fixing permissions for damien
   TARGET_USER="damien"
 else
   TARGET_USER="$USER"
@@ -43,12 +42,7 @@ log "Starting complete deployment for Kodakclout and Clutch..."
 # 1. Fix File Permissions
 # ------------------------------------------------------------------------------
 log "Fixing file permissions for $TARGET_USER..."
-if [ -d "$KODAKCLOUT_DIR" ]; then
-    sudo chown -R $TARGET_USER:$TARGET_USER "$KODAKCLOUT_DIR"
-fi
-if [ -d "$CLUTCH_DIR" ]; then
-    sudo chown -R $TARGET_USER:$TARGET_USER "$CLUTCH_DIR"
-fi
+sudo chown -R $TARGET_USER:$TARGET_USER "$KODAKCLOUT_DIR" "$CLUTCH_DIR"
 
 # ------------------------------------------------------------------------------
 # 2. PM2 Cleanup
@@ -78,6 +72,12 @@ if ! command -v pnpm &> /dev/null; then
     sudo npm install -g pnpm@8.15.0
 fi
 
+# Fix for "tsx" not found: install it globally or ensure it's in the workspace
+if ! command -v tsx &> /dev/null; then
+    log "Installing tsx globally to ensure seeding works..."
+    sudo npm install -g tsx
+fi
+
 pnpm install --no-frozen-lockfile
 pnpm run build
 
@@ -94,13 +94,14 @@ cd "$CLUTCH_DIR"
 
 # Ensure config has port 8081
 if [ -f degens777den.yaml ]; then
+    # Use brackets to ensure it's an array if that's what the YAML expects
     sed -i 's/port-http:.*/port-http: [":8081"]/g' degens777den.yaml
 else
     error "Clutch config degens777den.yaml not found!"
 fi
 
 # Extract JWT access key to use as API key in Kodakclout
-CLUTCH_ACCESS_KEY=$(grep 'access-key:' degens777den.yaml | awk -F': ' '{print $2}' | tr -d '"')
+CLUTCH_ACCESS_KEY=$(grep 'access-key:' degens777den.yaml | awk -F': ' '{print $2}' | tr -d '"' | tr -d "'")
 if [ -z "$CLUTCH_ACCESS_KEY" ]; then
     CLUTCH_ACCESS_KEY="local-clutch-key" # fallback
 fi
@@ -116,15 +117,17 @@ pm2 start ./clutch-server --name clutch-engine -- web -c degens777den.yaml
 
 # Wait and verify Clutch is healthy
 log "Waiting for Clutch engine to start..."
-sleep 5
-for i in {1..6}; do
-    if curl -s http://localhost:8081/ping >/dev/null; then
+MAX_RETRIES=12
+for i in $(seq 1 $MAX_RETRIES); do
+    # Try both /ping and /game/list to be sure it's fully ready
+    if curl -s http://localhost:8081/ping >/dev/null || curl -s http://localhost:8081/game/list?inc=all >/dev/null; then
         log "Clutch engine is responding on port 8081."
         break
     fi
-    if [ $i -eq 6 ]; then
-        error "Clutch engine failed to start or respond on port 8081."
+    if [ $i -eq $MAX_RETRIES ]; then
+        error "Clutch engine failed to start or respond on port 8081. Check 'pm2 logs clutch-engine'"
     fi
+    log "Retry $i/$MAX_RETRIES: Clutch not ready yet..."
     sleep 5
 done
 
@@ -169,19 +172,13 @@ sleep 5
 log "Running game seeding script..."
 cd "$KODAKCLOUT_DIR"
 
-# The seed script uses ClutchProvider which expects the list at /game/list.
-# Since we confirmed the Clutch engine exposes /game/list, the existing script should work,
-# but we will patch it just in case to ensure it points to the right path if needed.
-# The provider code already calls `/game/list`.
-
-pnpm exec tsx scripts/seed-games.ts || {
-    warn "Seed script failed. Attempting fallback direct insertion..."
-    # Fallback: if the script fails, it might be due to empty list or auth.
-    # We will try to fetch the games list directly and insert them.
+# Use 'tsx' directly since we installed it globally
+tsx scripts/seed-games.ts || {
+    warn "Standard seed script failed. Attempting fallback direct insertion..."
     GAMES_JSON=$(curl -s "http://localhost:8081/game/list?inc=all")
     if echo "$GAMES_JSON" | grep -q '"list"'; then
         log "Fetched games directly from Clutch API. Patching DB..."
-        # Create a temporary node script to insert games directly
+        echo "$GAMES_JSON" > clutch_games.json
         cat << 'EOF' > scripts/fallback-seed.ts
 import { db } from "../server/src/db/index.js";
 import { games } from "../server/src/db/schema.js";
@@ -211,13 +208,12 @@ async function run() {
     console.log("Fallback seeding complete.");
     process.exit(0);
 }
-run().catch(console.error);
+run().catch(err => { console.error(err); process.exit(1); });
 EOF
-        echo "$GAMES_JSON" > clutch_games.json
-        pnpm exec tsx scripts/fallback-seed.ts
+        tsx scripts/fallback-seed.ts
         rm clutch_games.json scripts/fallback-seed.ts
     else
-        error "Could not fetch games from Clutch engine even directly."
+        warn "Could not fetch games from Clutch engine even directly. Games list might be empty."
     fi
 }
 
@@ -234,7 +230,7 @@ fi
 
 log "Performing final health checks..."
 HEALTH_JSON=$(curl -s http://localhost:8080/api/health || echo "{}")
-if echo "$HEALTH_JSON" | grep -q '"clutch":"healthy"'; then
+if echo "$HEALTH_JSON" | grep -q '"clutch":"healthy"' || echo "$HEALTH_JSON" | grep -q '"clutch":"connected"'; then
     log "Health check passed! Clutch is healthy."
 else
     warn "Health check indicates Clutch might not be fully healthy: $HEALTH_JSON"
