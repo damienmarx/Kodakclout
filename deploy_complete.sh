@@ -7,7 +7,7 @@
 # 1. Fixes permissions for the damien user.
 # 2. Cleans up conflicting PM2 processes and ports.
 # 3. Rebuilds the Kodakclout project and symlinks the frontend.
-# 4. Configures and starts the Clutch engine on port 8081.
+# 4. Configures and starts the Clutch engine on port 8081 with the 'web' command.
 # 5. Updates the Kodakclout .env file with the correct Clutch API endpoint.
 # 6. Starts Kodakclout via PM2.
 # 7. Executes the game seeding script, patching it if necessary to handle the /game/list endpoint.
@@ -94,13 +94,13 @@ cd "$CLUTCH_DIR"
 
 # Ensure config has port 8081
 if [ -f degens777den.yaml ]; then
-    sed -i 's/port-http:.*/port-http: ":8081"/g' degens777den.yaml
+    sed -i 's/port-http:.*/port-http: [":8081"]/g' degens777den.yaml
 else
     error "Clutch config degens777den.yaml not found!"
 fi
 
 # Extract JWT access key to use as API key in Kodakclout
-CLUTCH_ACCESS_KEY=$(grep 'access-key:' degens777den.yaml | awk -F'"' '{print $2}')
+CLUTCH_ACCESS_KEY=$(grep 'access-key:' degens777den.yaml | awk -F': ' '{print $2}' | tr -d '"')
 if [ -z "$CLUTCH_ACCESS_KEY" ]; then
     CLUTCH_ACCESS_KEY="local-clutch-key" # fallback
 fi
@@ -111,7 +111,7 @@ if [ ! -f clutch-server ]; then
     go build -o clutch-server main.go
 fi
 
-# Start Clutch
+# Start Clutch with the 'web' command
 pm2 start ./clutch-server --name clutch-engine -- web -c degens777den.yaml
 
 # Wait and verify Clutch is healthy
