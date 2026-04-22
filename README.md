@@ -1,59 +1,137 @@
-# 🎰 Kodakclout – Unified Casino Platform
+# Kodakclout: Unified Casino Platform
 
-Kodakclout is a modern, full-stack casino platform developed by **Damien Marx**. It integrates a high-performance Express/tRPC backend with a React/Vite frontend, powered by the **Clutch Engine** for a seamless 340+ game experience.
+Kodakclout is a modern, full-stack casino platform designed for seamless integration with the Clutch game engine. This repository contains the backend (Node.js/Express/tRPC), frontend (React/Vite), and shared utilities, providing a robust foundation for online gaming experiences.
 
-## 🚀 Quick Start (Debian)
+## Features
 
-The platform is optimized for Debian environments. Use the unified setup script to automate everything from dependency installation to Cloudflared tunnel startup.
+-   **Full-Stack Architecture**: Node.js backend with Express and tRPC, React frontend with Vite.
+-   **Clutch Engine Integration**: Seamlessly connects with the Clutch game engine for a wide variety of casino games.
+-   **MariaDB Database**: Persistent storage for user data, game states, and transactions.
+-   **PM2 Process Management**: Ensures high availability and automatic restarts for both Kodakclout and Clutch services.
+-   **Cloudflare Tunnel Support**: Secure and efficient public access via Cloudflare.
+-   **Idempotent Deployment**: A single script for reliable and repeatable deployments.
 
-```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-```
+## Deployment
 
-### What the Setup Script Does:
-1.  **Purges Environment Conflicts:** Removes old `node_modules`, lockfiles, and build artifacts to ensure a clean slate.
-2.  **System Pre-checks:** Installs missing dependencies (`mariadb`, `golang`, `pnpm`, `jq`, etc.) automatically.
-3.  **Database Self-Healing:** Automatically configures MariaDB, creates the database, and sets up the `clout_user` with correct permissions.
-4.  **Seamless Clutch Integration:** Automatically clones the Clutch engine repository, builds it from source, and deploys it via PM2.
-5.  **Cloudflared Automation:** Automatically starts your Cloudflare Tunnel using the `CLOUDFLARE_API_TOKEN` in your `.env`.
-6.  **Health Checks:** Validates that the backend and games engine are running correctly before finishing.
+This project utilizes a comprehensive, idempotent Bash script (`deploy_complete.sh`) to automate the entire deployment process on a Debian VPS. This script handles dependencies, configuration, service management, and health checks, ensuring a consistent and reliable setup.
 
-## 🛠️ Architecture: One Frontend, Two Backends
+### Prerequisites
 
-Kodakclout uses a "One Frontend, Two Backends" architecture for maximum performance:
+Before running the deployment script, ensure your Debian VPS meets the following requirements:
 
-| Component | Technology Stack | Role |
-| :--- | :--- | :--- |
-| **Frontend** | React, Vite, TailwindCSS | The user-facing interface and game lobby. |
-| **Backend (Node.js)** | Express, tRPC, Drizzle ORM | Manages users, sessions, and orchestrates game launches. |
-| **Backend (Go)** | Clutch Engine, GoLang | High-performance engine for RNG and core game logic. |
+-   **Operating System**: Debian 12+.
+-   **Node.js**: Version 20+.
+-   **pnpm**: Package manager.
+-   **PM2**: Process manager.
+-   **MariaDB**: Database server.
+-   **Go**: Programming language (for Clutch engine).
+-   **Cloudflare Tunnel**: Already configured and running (the script will verify its status).
+-   **GitHub CLI (`gh`)**: Configured for access to `damienmarx/Kodakclout` and `damienmarx/Clutch`.
 
-## 📂 Project Structure
+### How to Deploy
 
--   `/client`: The React frontend application.
--   `/server`: The Express/tRPC backend with Drizzle ORM.
--   `/shared`: Shared code (types, schemas, constants) for end-to-end type safety.
--   `/scripts`: Automation scripts for setup, deployment, and Cloudflare.
+To deploy or update the Kodakclout platform and Clutch engine, follow these steps on your VPS as the `damien` user (or a user with `sudo` privileges):
 
-## 🔐 Environment Variables
+1.  **Navigate to your Kodakclout directory and pull the latest changes:**
+    ```bash
+    cd /home/damien/Kodakclout
+    git pull origin main
+    ```
 
-Ensure your `server/.env` contains the following:
+2.  **Navigate to your Clutch directory and pull the latest changes:**
+    ```bash
+    cd /home/damien/Clutch
+    git pull origin main
+    ```
 
-```env
-PORT=8080
-DATABASE_URL=mysql://clout_user:clout_pass@127.0.0.1:3306/kodakclout
-JWT_SECRET=your_secret_key
-CLOUDFLARE_API_TOKEN=your_cloudflare_token
-CLUTCH_API_URL=http://localhost:8081
-CLUTCH_API_KEY=your_clutch_api_key
-```
+3.  **Execute the complete deployment script:**
+    ```bash
+    cd /home/damien/Kodakclout
+    chmod +x deploy_complete.sh
+    ./deploy_complete.sh
+    ```
 
-## 🚦 Monitoring
+The `deploy_complete.sh` script is designed to be idempotent, meaning it can be run multiple times without causing unintended side effects. It will automatically detect and correct common configuration issues.
 
--   **Check Status:** `pm2 status`
--   **View Logs:** `pm2 logs`
--   **Restart All:** `pm2 restart all`
+### What `deploy_complete.sh` Does
+
+The deployment script performs the following actions:
+
+1.  **Fixes File Permissions**: Ensures the `damien` user has appropriate read/write permissions for both Kodakclout and Clutch directories.
+2.  **Cleans Up PM2 Processes**: Stops and deletes any existing `kodakclout` and `clutch-engine` PM2 processes. It also attempts to free up ports 8080 and 8081 if they are stuck.
+3.  **Builds Kodakclout**: Installs `pnpm` if missing, then runs `pnpm install --no-frozen-lockfile` and `pnpm run build`. It then creates a symbolic link from `client/dist` to `server/dist/client/dist` to ensure the frontend is correctly served by the backend.
+4.  **Configures and Starts Clutch Engine**: Ensures the `degens777den.yaml` configuration file specifies `port-http: ":8081"`. It builds the `clutch-server` binary if it doesn't exist and starts the Clutch engine via PM2 under the name `clutch-engine`. The script includes a loop to wait and verify that the Clutch engine is responding on port 8081 via its `/ping` endpoint.
+5.  **Updates Kodakclout's `.env`**: Automatically extracts the `access-key` from `degens777den.yaml` and sets it as `CLUTCH_API_KEY` in Kodakclout's `server/.env` file. It also ensures `CLUTCH_API_URL` is set to `http://localhost:8081`.
+6.  **Starts Kodakclout Backend**: Identifies the correct entry point for the Kodakclout server (`server/dist/server/src/index.js` or similar) and starts it via PM2 under the name `kodakclout`.
+7.  **Executes Game Seeding Script**: Runs `pnpm exec tsx scripts/seed-games.ts`. If this script fails (e.g., due to no games found), it includes a fallback mechanism to directly fetch games from the Clutch `/game/list` API and insert them into the database using a temporary TypeScript script.
+8.  **Verifies Cloudflare Tunnel**: Checks the status of the `cloudflared` service and attempts to restart it if it's not running.
+9.  **Performs Final Health Checks**: Queries the Kodakclout health endpoint (`http://localhost:8080/api/health`) and verifies that the `clutch` status is reported as `"healthy"` or `"connected"`.
+
+## Verification
+
+After the `deploy_complete.sh` script finishes, you can verify the deployment status using the following methods:
+
+-   **PM2 Status**: Check that both `kodakclout` and `clutch-engine` processes are online:
+    ```bash
+    pm2 list
+    ```
+-   **Kodakclout Health**: Verify the backend health and Clutch integration status:
+    ```bash
+    curl http://localhost:8080/api/health
+    # Expected output should include: "clutch":"healthy" or "clutch":"connected"
+    ```
+-   **Clutch Engine Health**: Confirm the Clutch engine is responsive:
+    ```bash
+    curl http://localhost:8081/ping
+    # Expected output: HTTP 200 OK
+    ```
+-   **Frontend Access**: Visit `https://cloutscape.org` in your browser. The home page should load without errors, and navigating to the Games section should display the full library of 340+ slots.
+
+## Configuration
+
+### Kodakclout (`server/.env`)
+
+The `server/.env` file in the Kodakclout directory contains critical environment variables. The `deploy_complete.sh` script will automatically update `CLUTCH_API_URL` and `CLUTCH_API_KEY`. Other variables you might need to configure manually include:
+
+-   `PORT`: The port Kodakclout listens on (default: `8080`).
+-   `NODE_ENV`: Set to `production` for production environments.
+-   `DATABASE_URL`: MariaDB connection string.
+-   `JWT_SECRET`: Secret key for JWT authentication.
+-   `CLIENT_URL`: The public URL of your frontend (e.g., `https://cloutscape.org`).
+
+### Clutch (`degens777den.yaml`)
+
+The `degens777den.yaml` file in the Clutch directory configures the game engine. The `deploy_complete.sh` script ensures `port-http: ":8081"` is set. Key sections include:
+
+-   `authentication`: Defines JWT access and refresh token TTLs and keys.
+-   `web-server`: Configures HTTP server settings, including `port-http` and `trusted-proxies` (important for Cloudflare integration).
+-   `database`: Specifies SQLite database files (`degens777den-club.sqlite`, `degens777den-spin.sqlite`).
+
+## Project Structure
+
+### Kodakclout
+
+-   `client/`: React frontend application.
+-   `server/`: Node.js backend application.
+-   `shared/`: Shared TypeScript types and constants.
+-   `scripts/`: Utility scripts, including `deploy_complete.sh` and `seed-games.ts`.
+
+### Clutch
+
+-   `api/`: Go source code for API handlers and routing.
+-   `cmd/`: Cobra commands for application startup.
+-   `config/`: Configuration structures and loading logic.
+-   `degens777den.yaml`: Deployment-specific configuration for the game engine.
+-   `main.go`: Main entry point for the Go application.
+
+## Contributing
+
+Contributions are welcome! Please refer to the project's issue tracker for open tasks or submit pull requests with improvements.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 ---
-*Developed by Damien Marx for the Kodakclout community.*
+
+*Generated by Manus AI*
