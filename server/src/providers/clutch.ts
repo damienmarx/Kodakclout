@@ -1,16 +1,10 @@
 import axios from "axios";
-import { Game, GameLaunchResponse } from "@kodakclout/shared";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const CLUTCH_API_URL = process.env.CLUTCH_API_URL || "http://localhost:8081";
 const CLUTCH_API_KEY = process.env.CLUTCH_API_KEY || "local-clutch-key";
-
-interface ClutchGame {
-  name: string;
-  [key: string]: unknown;
-}
 
 export class ClutchProvider {
   private static instance: ClutchProvider;
@@ -34,9 +28,6 @@ export class ClutchProvider {
       timeout: 5000
     });
   }
-
-  // getGames method is removed as it's now handled directly in router.ts
-  // getLaunchUrl method is removed as it's now handled directly in router.ts
 
   async validateToken(token: string): Promise<boolean> {
     try {
