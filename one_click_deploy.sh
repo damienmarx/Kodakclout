@@ -101,7 +101,8 @@ update_clutch_db() {
 seed_games_table() {
     log "Seeding games table with 340+ games..."
     cd ${REPO_DIR}/server
-    pnpm tsx src/db/seed-games.ts || error "Failed to seed games table."
+    # Using the correct path relative to the server directory
+    pnpm tsx src/scripts/seed-games.ts || error "Failed to seed games table."
     success "Games table seeded."
 }
 
