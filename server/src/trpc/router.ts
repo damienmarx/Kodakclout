@@ -1,17 +1,19 @@
 import { router, publicProcedure, protectedProcedure } from "./trpc.js";
 import { GamesQuery, Session } from "@kodakclout/shared";
 import { GamesQuerySchema, GamesListResponseSchema, GameLaunchResponseSchema } from "@kodakclout/shared";
-import { ClutchProvider } from "../providers/clutch.js";
+
 import { InternalProvider } from "../providers/internal.js";
 import { authRouter } from "./auth.js";
 import { adminRouter } from "./admin.js";
 import { z } from "zod";
-import { db, createConnection } from "../db/index.js"; // Import createConnection
+import { db, createConnection } from "../db/index.js";
+import jwt from "jsonwebtoken";
+import axios from "axios";
 import { users, transactions } from "../db/schema.js";
 import { eq, sql } from "drizzle-orm";
-import mysql from "mysql2/promise"; // Import mysql2
+import mysql from "mysql2/promise";
 
-const clutch = ClutchProvider.getInstance();
+
 const internal = InternalProvider.getInstance();
 
 // Get a raw mysql2 connection pool
@@ -26,7 +28,25 @@ export const appRouter = router({
     .query(async ({ input }: { input: GamesQuery }) => {
       const { page, pageSize, category, search, provider } = input;
 
-      // Fetch games directly using mysql2 to bypass Drizzle ORM issue
+      let whereClauses: string[] = ['1=1'];
+      const params: (string | number)[] = [];
+
+      if (category) {
+        whereClauses.push(`category = ?`);
+        params.push(category);
+      }
+      if (provider) {
+        whereClauses.push(`provider = ?`);
+        params.push(provider);
+      }
+      if (search) {
+        whereClauses.push(`(title LIKE ? OR slug LIKE ?)`);
+        params.push(`%${search}%`);
+        params.push(`%${search}%`);
+      }
+
+      const whereSql = whereClauses.join(" AND ");
+
       const [rows] = await rawPool.execute<mysql.RowDataPacket[]>(`
         SELECT
           id,
@@ -41,35 +61,29 @@ export const appRouter = router({
           is_hot as isHot,
           clutch_alias as clutchAlias
         FROM games
-        WHERE 1=1
-        ${category ? `AND category = ${rawPool.escape(category)}` : ''}
-        ${provider ? `AND provider = ${rawPool.escape(provider)}` : ''}
-        ${search ? `AND (title LIKE ${rawPool.escape(`%${search}%`)} OR slug LIKE ${rawPool.escape(`%${search}%`)})` : ''}
+        WHERE ${whereSql}
         LIMIT ? OFFSET ?
-      `, [pageSize, (page - 1) * pageSize]);
+      `, [...params, pageSize, (page - 1) * pageSize]);
 
       const [totalRows] = await rawPool.execute<mysql.RowDataPacket[]>(`
         SELECT COUNT(*) as count
         FROM games
-        WHERE 1=1
-        ${category ? `AND category = ${rawPool.escape(category)}` : ''}
-        ${provider ? `AND provider = ${rawPool.escape(provider)}` : ''}
-        ${search ? `AND (title LIKE ${rawPool.escape(`%${search}%`)} OR slug LIKE ${rawPool.escape(`%${search}%`)})` : ''}
-      `);
+        WHERE ${whereSql}
+      `, params);
       const total = (totalRows[0] as { count: number }).count;
 
-      const games = rows.map(row => ({
+      const games = rows.map((row: any) => ({
         id: row.id,
         slug: row.slug,
         title: row.title,
-        provider: row.provider === 'clutch' ? 'clutch' : 'internal', // Ensure provider is 'clutch' or 'internal'
-        category: row.category || 'slots', // Fallback to 'slots' if NULL
+        provider: (row.provider === 'clutch' || row.provider === 'internal') ? row.provider : 'internal', // Default to internal if unknown'
+        category: row.category || 'slots',
         thumbnail: row.thumbnail,
         description: row.description,
-        isNew: !!row.isNew, // Convert 1/0 to true/false
-        isHot: !!row.isHot, // Convert 1/0 to true/false
-        isActive: !!row.isActive, // Convert 1/0 to true/false
-        clutchAlias: row.clutchAlias, // Include clutchAlias
+        isNew: !!row.isNew,
+        isHot: !!row.isHot,
+        isActive: !!row.isActive,
+        clutchAlias: row.clutchAlias,
       }));
 
       return {
@@ -80,19 +94,17 @@ export const appRouter = router({
       };
     }),
 
-  launchGame: publicProcedure // Changed to publicProcedure as per requirements
+  launchGame: publicProcedure
     .input(z.object({ slug: z.string() }))
     .output(GameLaunchResponseSchema)
-    .mutation(async ({ input, ctx }: { input: { slug: string }, ctx: { user?: Session } }) => { // user is optional now
+    .mutation(async ({ input, ctx }: { input: { slug: string }, ctx: { user?: Session | null } }) => {
       const internalGames = await internal.getGames();
       const isInternal = internalGames.some(g => g.slug === input.slug);
       
       if (isInternal) {
-        // For internal games, user ID is not strictly required for MVP, but keeping it for consistency
         return await internal.getLaunchUrl(input.slug, ctx.user?.userId?.toString() || '1'); 
       }
       
-      // Fetch clutch_alias from the database
       const [gameRows] = await rawPool.execute<mysql.RowDataPacket[]>(`
         SELECT clutch_alias FROM games WHERE slug = ?
       `, [input.slug]);
@@ -102,16 +114,14 @@ export const appRouter = router({
       }
       const clutchAlias = gameRows[0].clutch_alias;
 
-      // Generate JWT for Clutch games
-      const JWT_SECRET = process.env.CLUTCH_API_KEY || "local-clutch-key"; // Use CLUTCH_API_KEY as secret
+      const JWT_SECRET = process.env.CLUTCH_API_KEY || "local-clutch-key";
       const now = Math.floor(Date.now() / 1000);
-      const exp = now + 300; // 5 minutes expiration
+      const exp = now + 300;
       const token = jwt.sign(
-        { uid: ctx.user?.userId || 1, cid: 1, iss: 'slotopol', exp: exp }, // Default uid to 1 if not logged in
+        { uid: ctx.user?.userId || 1, cid: 1, iss: 'slotopol', exp: exp },
         JWT_SECRET
       );
 
-      // POST to http://localhost:8081/game/new
       const clutchResponse = await axios.post(
         `${process.env.CLUTCH_API_URL || 'http://localhost:8081'}/game/new`,
         { cid: 1, uid: ctx.user?.userId || 1, alias: clutchAlias },
@@ -119,7 +129,6 @@ export const appRouter = router({
       );
       const { gid } = clutchResponse.data;
 
-      // Return iframe URL
       return {
         url: `https://clutch.cloutscape.org/?gid=${gid}&cid=1&uid=${ctx.user?.userId || 1}`,
         token: token,
@@ -186,7 +195,6 @@ export const appRouter = router({
       });
     }),
 
-  // ─── Internal Games ────────────────────────────────────────────────────────
   playDice: protectedProcedure
     .input(z.object({ 
       bet: z.number().positive(), 
@@ -202,13 +210,10 @@ export const appRouter = router({
 
         const result = await internal.playDice(ctx.user.userId, input.bet, input.target, input.type);
         
-        // Update balance atomically
-        const balanceChange = result.payout - input.bet;
         await tx.update(users)
-          .set({ balance: sql`${users.balance} + ${balanceChange}` })
+          .set({ balance: sql`${users.balance} + ${result.payout - input.bet}` })
           .where(eq(users.id, ctx.user.userId));
 
-        // Log bet
         await tx.insert(transactions).values({
           userId: ctx.user.userId,
           amount: -input.bet,
@@ -216,7 +221,6 @@ export const appRouter = router({
           reference: "dice"
         });
 
-        // Log win if any
         if (result.payout > 0) {
           await tx.insert(transactions).values({
             userId: ctx.user.userId,
