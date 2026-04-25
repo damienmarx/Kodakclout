@@ -117,7 +117,24 @@ manage_pm2_processes() {
 
     # Start Clutch engine
     log "Starting Clutch engine via PM2..."
-    pm2 start ${CLUTCH_ENGINE_PATH} --name clutch-engine -- web -c degens777den.yaml --port 8081 || error "Failed to start Clutch engine."
+    
+    # Robust detection of Clutch engine binary
+    ACTUAL_CLUTCH_PATH=""
+    if [ -f "${CLUTCH_ENGINE_PATH}" ]; then
+        ACTUAL_CLUTCH_PATH="${CLUTCH_ENGINE_PATH}"
+    elif [ -f "${HOME_DIR}/Clutch/clutch-server" ]; then
+        ACTUAL_CLUTCH_PATH="${HOME_DIR}/Clutch/clutch-server"
+    elif [ -f "${REPO_DIR}/clutch-server" ]; then
+        ACTUAL_CLUTCH_PATH="${REPO_DIR}/clutch-server"
+    fi
+
+    if [ -z "${ACTUAL_CLUTCH_PATH}" ]; then
+        warn "Clutch engine binary 'clutch-server' not found in expected locations. Skipping Clutch engine start."
+        warn "Please ensure the 'clutch-server' binary is located at ${CLUTCH_ENGINE_PATH} or ~/Clutch/clutch-server"
+    else
+        log "Found Clutch engine at ${ACTUAL_CLUTCH_PATH}"
+        pm2 start ${ACTUAL_CLUTCH_PATH} --name clutch-engine -- web -c degens777den.yaml --port 8081 || error "Failed to start Clutch engine."
+    fi
 
     # Start Kodakclout server
     log "Starting Kodakclout server via PM2..."
