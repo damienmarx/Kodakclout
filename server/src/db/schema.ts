@@ -29,6 +29,7 @@ export const games = mysqlTable("games", {
   isActive: boolean("is_active").default(true).notNull(),
   isNew: boolean("is_new").default(false).notNull(),
   isHot: boolean("is_hot").default(false).notNull(),
+  clutchAlias: varchar("clutch_alias", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

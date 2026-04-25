@@ -23,6 +23,7 @@ export default function App() {
       links: [
         httpBatchLink({
           url: `${import.meta.env.VITE_API_URL || ""}${TRPC_PREFIX}`,
+          credentials: "include",
           async headers() {
             return {};
           },
@@ -39,7 +40,7 @@ export default function App() {
             <BrowserRouter>
               <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-indigo-500/30">
                 <Routes>
-                <Route path="/" element={<Navigate to="/home" replace />} />
+                <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/home" element={<Home />} />
