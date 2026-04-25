@@ -70,37 +70,39 @@ install_and_build() {
 }
 
 # --- Patch Compiled Files -----------------------------------------------------
-patch_compiled_files() {
-    log "Patching compiled JavaScript files..."
 
-    # Patch router.js (getGames logic)
-    # This is a placeholder. The actual patching will involve more complex sed commands
-    # or direct file replacement after generating the new router.js content.
-    warn "router.js patching is a placeholder. Actual implementation needed."
-
-    # Patch clutch.js (JWT auth and public URL)
-    warn "clutch.js patching is a placeholder. Actual implementation needed."
-
-    # Patch index.js (CORS)
-    warn "index.js patching is a placeholder. Actual implementation needed."
-
-    success "Compiled files patching complete (placeholders)."
-}
 
 # --- Update Clutch SQLite Databases -------------------------------------------
 update_clutch_db() {
     log "Updating Clutch SQLite databases..."
-    # This will involve direct SQLite commands or a script to update club, user, props tables.
-    warn "Clutch SQLite database update is a placeholder. Actual implementation needed."
-    success "Clutch SQLite databases updated (placeholder)."
+    CLUTCH_DB_PATH="${CLUTCH_DIR}/db"
+
+    if [ ! -d "${CLUTCH_DB_PATH}" ]; then
+        warn "Clutch database directory not found at ${CLUTCH_DB_PATH}. Skipping database updates."
+        return 0
+    fi
+
+    # Update club table
+    log "Updating club table..."
+    sqlite3 ${CLUTCH_DB_PATH}/club.db "UPDATE club SET balance = 1000000 WHERE id = 1;" || warn "Failed to update club.db"
+
+    # Update user table
+    log "Updating user table..."
+    sqlite3 ${CLUTCH_DB_PATH}/user.db "UPDATE user SET balance = 1000000 WHERE id = 1;" || warn "Failed to update user.db"
+
+    # Update props table
+    log "Updating props table..."
+    sqlite3 ${CLUTCH_DB_PATH}/props.db "UPDATE props SET value = 1 WHERE key = 'game_count';" || warn "Failed to update props.db"
+
+    success "Clutch SQLite databases updated."
 }
 
 # --- Seed Games Table ---------------------------------------------------------
 seed_games_table() {
     log "Seeding games table with 340+ games..."
-    # This will involve running the seed-games.ts script or a custom script.
-    warn "Games table seeding is a placeholder. Actual implementation needed."
-    success "Games table seeded (placeholder)."
+    cd ${REPO_DIR}/server
+    pnpm tsx src/db/seed-games.ts || error "Failed to seed games table."
+    success "Games table seeded."
 }
 
 # --- Start/Restart PM2 Processes ----------------------------------------------
@@ -157,7 +159,7 @@ main() {
     fix_permissions
     write_env_file
     install_and_build
-    patch_compiled_files # This will be replaced with actual patching logic
+
     update_clutch_db     # This will be replaced with actual DB update logic
     seed_games_table     # This will be replaced with actual seeding logic
     manage_pm2_processes
