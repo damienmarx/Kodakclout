@@ -35,54 +35,8 @@ export class ClutchProvider {
     });
   }
 
-  async getGames(): Promise<Game[]> {
-    try {
-      const response = await this.client.get<{ list: ClutchGame[] }>("/game/list", {
-        params: { inc: "all", sort: true }
-      });
-      
-      const clutchGames = response.data.list || [];
-      return clutchGames.map((g: ClutchGame) => ({
-        id: g.name,
-        slug: g.name.toLowerCase().replace(/\s+/g, "-"),
-        title: g.name,
-        provider: "clutch",
-        category: "slots",
-        thumbnail: `/assets/games/${g.name.toLowerCase().replace(/\s+/g, "-")}.png`,
-        isActive: true,
-      }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      // Using a structured logger or silent fail for production-readiness
-      if (process.env.NODE_ENV !== "production") {
-        console.error(`[Clutch] getGames failed: ${message}`);
-      }
-      return [];
-    }
-  }
-
-  async getLaunchUrl(gameSlug: string, userId: string): Promise<GameLaunchResponse> {
-    try {
-      const response = await this.client.post<{ gid: string; access: string }>("/game/new", {
-        cid: 1,
-        uid: parseInt(userId) || 1,
-        alias: gameSlug
-      });
-
-      const { gid, access } = response.data;
-      
-      return {
-        url: `${CLUTCH_API_URL}/?gid=${gid}&cid=1&uid=${userId}`,
-        token: access,
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      if (process.env.NODE_ENV !== "production") {
-        console.error(`[Clutch] getLaunchUrl failed: ${message}`);
-      }
-      throw new Error("Game service currently unavailable. Please try again later.");
-    }
-  }
+  // getGames method is removed as it's now handled directly in router.ts
+  // getLaunchUrl method is removed as it's now handled directly in router.ts
 
   async validateToken(token: string): Promise<boolean> {
     try {
