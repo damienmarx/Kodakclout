@@ -141,9 +141,20 @@ manage_pm2_processes() {
     pm2 start ${REPO_DIR}/server/dist/server/src/index.js --name kodakclout --node-args="--experimental-json-modules" || error "Failed to start Kodakclout server."
 
     # Save PM2 configuration for persistence
-    pm2 save || error "Failed to save PM2 configuration."
-    pm2 startup || error "Failed to configure PM2 startup."
-    success "PM2 processes managed."
+    log "Saving PM2 process list..."
+    pm2 save || warn "Failed to save PM2 configuration."
+    
+    log "Attempting to configure PM2 startup (may require manual step)..."
+    # pm2 startup usually prints a command that needs to be run with sudo
+    STARTUP_CMD=$(pm2 startup | grep "sudo env PATH" || true)
+    if [ -n "${STARTUP_CMD}" ]; then
+        warn "PM2 startup requires manual action. Please run the following command to ensure the platform starts on boot:"
+        echo -e "\e[1;33m${STARTUP_CMD}\e[0m"
+    else
+        success "PM2 startup configured or already active."
+    fi
+    
+    success "PM2 processes are now RUNNING."
 }
 
 # --- Verify Health Endpoint ---------------------------------------------------
