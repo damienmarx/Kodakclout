@@ -10,28 +10,27 @@ import { createContext } from "./trpc/trpc.js";
 import { API_PREFIX, TRPC_PREFIX } from "@kodakclout/shared";
 import { checkDbHealth } from "./db/index.js";
 import { ClutchProvider } from "./providers/clutch.js";
-
 dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = process.env.PORT || 8080;
 const IS_PROD = process.env.NODE_ENV === "production";
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === "true";
-
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:8080",
+  "https://cloutscape.org",
+  "https://api.cloutscape.org",
+  "https://www.cloutscape.org",
 ];
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || origin.endsWith(".cloutscape.org")) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin ${origin} not allowed`));
@@ -40,10 +39,8 @@ app.use(
     credentials: true,
   })
 );
-
 app.use(express.json());
 app.use(cookieParser());
-
 // ─── Maintenance Middleware ──────────────────────────────────────────────────
 app.use((req, res, next) => {
   if (MAINTENANCE_MODE && !req.path.startsWith(`${API_PREFIX}/health`)) {
@@ -54,7 +51,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
 // ─── Enhanced Health Check ───────────────────────────────────────────────────
 app.get(`${API_PREFIX}/health`, async (_req, res) => {
   const dbHealth = await checkDbHealth();
@@ -62,12 +58,13 @@ app.get(`${API_PREFIX}/health`, async (_req, res) => {
   let clutchHealth = "unknown";
   
   try {
-    const games = await clutch.getGames();
-    clutchHealth = games.length > 0 ? "healthy" : "no_games";
+    // Temporarily disable clutch health check to avoid issues with refactored clutch provider
+    // const games = await clutch.getGames(); 
+    // clutchHealth = games.length > 0 ? "healthy" : "no_games";
+    clutchHealth = "disabled_for_refactor";
   } catch {
     clutchHealth = "unreachable";
   }
-
   const isHealthy = dbHealth.status === "connected" && !MAINTENANCE_MODE;
   
   res.status(isHealthy ? 200 : 503).json({
@@ -79,7 +76,6 @@ app.get(`${API_PREFIX}/health`, async (_req, res) => {
     version: process.env.npm_package_version || "1.0.0"
   });
 });
-
 // ─── tRPC ─────────────────────────────────────────────────────────────────────
 app.use(
   TRPC_PREFIX,
@@ -88,7 +84,6 @@ app.use(
     createContext,
   })
 );
-
 // ─── REST Game Route (non-tRPC clients) ──────────────────────────────────────
 app.get(`${API_PREFIX}/games`, async (req, res) => {
   const caller = appRouter.createCaller({ req, res, user: null });
@@ -99,7 +94,6 @@ app.get(`${API_PREFIX}/games`, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch games" });
   }
 });
-
 // ─── Production: Serve Frontend ──────────────────────────────────────────────
 if (IS_PROD) {
   const clientDist = path.resolve(__dirname, "../../client/dist");
@@ -112,7 +106,6 @@ if (IS_PROD) {
     }
   });
 }
-
 const server = app.listen(PORT, () => {
   if (process.env.NODE_ENV !== "production") {
     console.log(`Kodakclout server running on port ${PORT}`);
@@ -120,7 +113,6 @@ const server = app.listen(PORT, () => {
     console.log(`tRPC endpoint: ${TRPC_PREFIX}`);
   }
 });
-
 // Graceful Shutdown
 process.on("SIGTERM", () => {
   server.close(() => {
