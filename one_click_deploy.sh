@@ -14,8 +14,8 @@ DB_USER="clout_user"
 DB_PASS="clout_pass"
 DB_NAME="kodakclout"
 
-CLUTCH_API_KEY="your_clutch_api_key_change_this" # Placeholder, will be replaced by user's actual key
-JWT_SECRET="your_super_secret_jwt_key_change_this" # Placeholder, will be replaced by user's actual key
+CLUTCH_API_KEY="slotopol_secret_key_12345" # Pre-filled for slotopol engine
+JWT_SECRET="kodakclout_prod_secret_998877" # Pre-filled production secret
 
 # --- Logging Functions --------------------------------------------------------
 log() { echo -e "\e[34m[INFO]\e[0m $1"; }
