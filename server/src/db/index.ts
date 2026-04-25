@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL) {
 /**
  * Hardened Database Connection Pool
  */
-const createConnection = () => {
+export const createConnection = () => {
   try {
     const pool = mysql.createPool({
       uri: process.env.DATABASE_URL,
